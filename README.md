@@ -17,7 +17,7 @@ skill, then ask questions.
 
 ```bash
 uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
-uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper
+uvx liferay-docs-scraper
 ```
 
 Run this from anywhere -- it does not write into your current directory,
@@ -66,9 +66,8 @@ support 3.14) and [uv](https://docs.astral.sh/uv/).
 # One-time: installs the Playwright/Chromium browser crawl4ai drives
 uvx --from crawl4ai crawl4ai-setup
 
-# From anywhere -- the corpus does NOT go in your current directory.
-# Not on PyPI yet, so install straight from GitHub:
-uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper
+# From anywhere -- the corpus does NOT go in your current directory:
+uvx liferay-docs-scraper
 ```
 
 This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14

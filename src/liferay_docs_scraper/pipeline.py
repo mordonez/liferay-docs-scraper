@@ -53,8 +53,8 @@ extraction:
 
 Setup and run (see README.md for the full explanation):
     uvx --from crawl4ai crawl4ai-setup   # one-time: installs Playwright browsers
-    uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper
-    # (not on PyPI yet -- once published, just `uvx liferay-docs-scraper`)
+    uvx liferay-docs-scraper             # writes to resolve_docs_dir(), see above
+    uvx liferay-docs-scraper --max-pages 200   # smaller test run
 """
 
 import argparse

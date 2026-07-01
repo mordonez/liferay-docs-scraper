@@ -27,13 +27,13 @@ Call this `$DOCS_DIR` below. It should contain a `raw/` subfolder.
   (takes ~30-40 min, hits learn.liferay.com directly):
   ```
   uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
-  uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper
+  uvx liferay-docs-scraper
   ```
   Don't launch this yourself mid-conversation — it's long-running and the
   user should choose when to wait for it.
 - **`raw/` exists?** Check a few files' `fetched_at` frontmatter. If it's
   more than ~7 days old, mention the docs may be stale and that
-  `uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper` refreshes them (still answer with what's
+  `uvx liferay-docs-scraper` refreshes them (still answer with what's
   there — don't block on refreshing).
 
 ## Step 3: search and answer
@@ -78,7 +78,7 @@ than guessing one and stopping.
   skip them, their linked subpages exist as real files elsewhere.
 - `raw/_removed/{capability}/` = pages no longer on the live site. Only use
   as a last resort, and say explicitly that the source may be outdated.
-- The corpus refreshes on demand via `uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper` (rerun weekly if
+- The corpus refreshes on demand via `uvx liferay-docs-scraper` (rerun weekly if
   you want to stay current); each file's `fetched_at` frontmatter tells you how
   current it is.
 - `reports/filtered/{capability}_urls.txt` lists every in-scope URL per
