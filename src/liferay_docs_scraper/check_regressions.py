@@ -9,15 +9,19 @@ last commit) for every raw/**/*.md file:
     crawl4ai falling back to the whole page (breadcrumb/nav/footer chrome
     and all) instead of raising an error.
 
-Usage (run from the project directory that holds raw/):
+Operates on filter_urls.resolve_docs_dir() (the same shared corpus location
+the scraper writes to and the skill reads from), not the current directory.
+
+Usage:
     uvx --from liferay-docs-scraper check-regressions [--ref HEAD] [--shrink-threshold 0.5] [--growth-threshold 3.0]
 """
 
 import argparse
 import subprocess
-from pathlib import Path
 
-ROOT = Path.cwd()
+from .filter_urls import resolve_docs_dir
+
+ROOT = resolve_docs_dir()
 
 
 def body_len(text: str) -> int:

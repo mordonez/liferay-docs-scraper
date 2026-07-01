@@ -17,12 +17,23 @@ support 3.14) and [uv](https://docs.astral.sh/uv/).
 # One-time: installs the Playwright/Chromium browser crawl4ai drives
 uvx --from crawl4ai crawl4ai-setup
 
-# From whatever project directory you want raw/ to live in:
+# From anywhere -- the corpus does NOT go in your current directory:
 uvx --python 3.13 --from liferay-docs-scraper liferay-docs-scraper
 ```
 
 This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14
-capabilities) and writes:
+capabilities) and writes to one shared, per-user location (so it's the same
+corpus no matter which project you're in when the skill looks for it):
+
+| OS | Default location |
+|---|---|
+| macOS | `~/Library/Application Support/liferay-docs/` |
+| Linux | `~/.local/share/liferay-docs/` (or `$XDG_DATA_HOME/liferay-docs`) |
+| Windows | `%LOCALAPPDATA%\liferay-docs\` |
+
+Set `LIFERAY_DOCS_DIR` to override (e.g. to keep a project-local copy instead).
+
+Inside that directory:
 
 - `raw/{capability}/*.md` — the corpus, one file per page
 - `raw/_navigation/{capability}/*.md` — pure TOC pages, kept but deprioritized
@@ -31,11 +42,12 @@ capabilities) and writes:
 
 Re-run it anytime (weekly recommended) to refresh: it starts from zero every
 time, so it naturally picks up new pages, updates changed ones, and
-quarantines (never deletes) removed ones. If the directory is a git repo,
-it also runs `check-regressions` automatically afterward and flags any file
-that shrank by more than half or grew more than 3x versus the last commit
-(signals of a broken fetch) -- see `docs/adr/0001-crawl4ai-based-corpus-pipeline.md`
-for why that check exists.
+quarantines (never deletes) removed ones. If that directory is (or becomes)
+a git repo -- worth doing once, purely as a local diffing tool, nothing needs
+pushing anywhere -- it also runs `check-regressions` automatically afterward
+and flags any file that shrank by more than half or grew more than 3x versus
+the last commit (signals of a broken fetch); see
+`docs/adr/0001-crawl4ai-based-corpus-pipeline.md` for why that check exists.
 
 ## 2. Install the skill
 
@@ -44,9 +56,9 @@ npx skills add https://github.com/<you>/liferay-docs-scraper/tree/main/skills/li
 ```
 
 Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-expert/`
-in whatever project has your `raw/` corpus. Claude Code picks it up
-automatically and will search + cite `raw/` when you ask Liferay DXP
-questions.
+in any project. Claude Code picks it up automatically; the skill itself
+resolves `$LIFERAY_DOCS_DIR` (or the OS default above) to find the corpus,
+so it works the same regardless of which project you installed it into.
 
 ## Why no bundled docs, no embeddings, no vector DB
 

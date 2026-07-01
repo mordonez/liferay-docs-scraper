@@ -1,36 +1,47 @@
 ---
 name: liferay-expert
-description: Answer Liferay DXP technical questions by searching and reading the local scraped documentation corpus (raw/{capability}/*.md, ~1777 pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
+description: Answer Liferay DXP technical questions by searching and reading the local scraped documentation corpus (~1777 pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
 ---
 
 # Liferay Expert
 
-Ground every Liferay DXP answer in the scraped `raw/` corpus — don't answer from
+Ground every Liferay DXP answer in the scraped corpus — don't answer from
 memory alone when this skill applies. Find the actual doc, read it, cite it.
 
-## Before you start: is the corpus there?
+## Step 1: find the corpus
 
-`raw/{capability}/*.md` isn't bundled with this skill — it's generated locally by a
-companion tool, since redistributing Liferay's docs isn't this skill's place. Check
-first:
+The corpus lives in one shared location, not in whatever project you're
+currently in (so it isn't duplicated per-project). Resolve it once per
+conversation:
 
-- **No `raw/` directory in the current project?** Tell the user to run the scraper
-  once (takes ~30-40 min, hits learn.liferay.com directly):
+- If `$LIFERAY_DOCS_DIR` is set, use that.
+- Otherwise use the OS default: `~/Library/Application Support/liferay-docs`
+  (macOS), `%LOCALAPPDATA%\liferay-docs` (Windows), `~/.local/share/liferay-docs`
+  (Linux, or `$XDG_DATA_HOME/liferay-docs` if that's set).
+
+Call this `$DOCS_DIR` below. It should contain a `raw/` subfolder.
+
+## Step 2: is it there, and is it fresh?
+
+- **No `raw/` under `$DOCS_DIR`?** Tell the user to run the scraper once
+  (takes ~30-40 min, hits learn.liferay.com directly):
   ```
   uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
   uvx liferay-docs-scraper
   ```
-  Don't launch this yourself mid-conversation — it's long-running and the user
-  should choose when to wait for it.
-- **`raw/` exists?** Check a few files' `fetched_at` frontmatter. If it's more than
-  ~7 days old, mention the docs may be stale and that `uvx liferay-docs-scraper`
-  refreshes them (still answer with what's there — don't block on refreshing).
+  Don't launch this yourself mid-conversation — it's long-running and the
+  user should choose when to wait for it.
+- **`raw/` exists?** Check a few files' `fetched_at` frontmatter. If it's
+  more than ~7 days old, mention the docs may be stale and that
+  `uvx liferay-docs-scraper` refreshes them (still answer with what's
+  there — don't block on refreshing).
 
-## Quick start
+## Step 3: search and answer
 
 1. Pick the likely capability folder(s) from the map below.
-2. `grep -ril "<keyword>" raw/<capability>/*.md` — try 2-3 keyword variants.
-   Ignore any hits under `raw/_navigation/` (TOC-only, no unique content).
+2. `grep -ril "<keyword>" $DOCS_DIR/raw/<capability>/*.md` — try 2-3 keyword
+   variants. Ignore any hits under `raw/_navigation/` (TOC-only, no unique
+   content).
 3. Read the matching file(s) in full with the Read tool.
 4. Answer grounded in what you read. Always cite the source: the file's
    frontmatter `url:` field.
@@ -61,6 +72,8 @@ than guessing one and stopping.
 
 ## Notes
 
+- All paths above (`raw/...`, `reports/...`) are relative to `$DOCS_DIR` from
+  Step 1, not the current project directory.
 - `raw/_navigation/{capability}/` = TOC-only pages, excluded on purpose —
   skip them, their linked subpages exist as real files elsewhere.
 - `raw/_removed/{capability}/` = pages no longer on the live site. Only use

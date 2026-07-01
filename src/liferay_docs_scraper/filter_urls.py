@@ -3,12 +3,16 @@
 
 Capability classification (matching learn.liferay.com/w/dxp URLs to one of
 the 14 capabilities listed on /w/dxp/index, plus the self-hosted prune
-rules), and the URL->filename/frontmatter helpers used when writing pages
-to raw/{capability}/*.md.
+rules), the URL->filename/frontmatter helpers used when writing pages to
+raw/{capability}/*.md, and resolve_docs_dir() -- the one place that decides
+where that raw/ corpus actually lives on disk.
 """
 
 import hashlib
+import os
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 
 CAPABILITIES = {
@@ -120,3 +124,28 @@ def build_frontmatter(url: str, capability: str, markdown: str) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _default_data_dir() -> Path:
+    """Per-user app-data directory, one convention per OS, so the corpus
+    lives in the same predictable place regardless of which project you
+    happen to be running the scraper or the skill from."""
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "liferay-docs"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "liferay-docs"
+    # Linux and other Unix-likes: XDG Base Directory spec
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "liferay-docs"
+
+
+def resolve_docs_dir() -> Path:
+    """Where the local corpus (raw/, reports/filtered/) lives: $LIFERAY_DOCS_DIR
+    if set, otherwise the OS-appropriate default data directory. One shared
+    corpus regardless of the current project, unless explicitly overridden --
+    see _default_data_dir() for the per-OS default."""
+    override = os.environ.get("LIFERAY_DOCS_DIR")
+    if override:
+        return Path(override).expanduser()
+    return _default_data_dir()

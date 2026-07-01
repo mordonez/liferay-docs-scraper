@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Weekly from-scratch refresh of the learn.liferay.com/w/dxp corpus, crawl4ai-only.
 
-Builds raw/{capability}/*.md in the CURRENT WORKING DIRECTORY -- run this
-from whatever project you want the corpus to live in (e.g. right next to
-where the liferay-expert skill will look for it).
+Builds raw/{capability}/*.md under filter_urls.resolve_docs_dir(): the
+$LIFERAY_DOCS_DIR directory if that env var is set, otherwise one shared,
+OS-appropriate per-user data directory (e.g. ~/Library/Application
+Support/liferay-docs on macOS, %LOCALAPPDATA%\\liferay-docs on Windows,
+~/.local/share/liferay-docs on Linux). Deliberately NOT the current working
+directory -- the liferay-expert skill looks in that same shared location
+regardless of which project you're in when you ask a question, so you
+don't end up with a separate copy of the corpus per project.
 
 A single crawl4ai deep crawl handles both URL discovery and content
 extraction:
@@ -41,14 +46,14 @@ extraction:
     summary.json are regenerated from this run's live results, so they always
     reflect the current corpus (same format filter_urls.py produces).
   - Once everything above is written, check_regressions.py's run_check()
-    runs automatically against the last git commit (if the current directory
-    is a git repo), so a single invocation of this tool does the full
-    run-and-verify cycle (use --skip-regression-check otherwise, e.g. before
-    the first-ever commit).
+    runs automatically against the last git commit, if resolve_docs_dir()
+    is itself a git repo (worth `git init`-ing once, purely as a local
+    diffing tool -- nothing needs to be pushed anywhere). Skipped otherwise,
+    or with --skip-regression-check.
 
 Setup and run (see README.md for the full explanation):
     uvx --from crawl4ai crawl4ai-setup   # one-time: installs Playwright browsers
-    uvx liferay-docs-scraper             # run from the project where raw/ should live
+    uvx liferay-docs-scraper             # writes to resolve_docs_dir(), see above
     uvx liferay-docs-scraper --max-pages 200   # smaller test run
 """
 
@@ -71,13 +76,14 @@ from .filter_urls import (
     build_frontmatter,
     classify_url,
     normalize,
+    resolve_docs_dir,
     slugify,
 )
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, DomainFilter, FilterChain, URLPatternFilter
 
-ROOT = Path.cwd()
+ROOT = resolve_docs_dir()
 RAW_DIR = ROOT / "raw"
 REMOVED_DIR = RAW_DIR / "_removed"
 NAVIGATION_DIR = RAW_DIR / "_navigation"
