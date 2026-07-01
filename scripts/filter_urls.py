@@ -21,18 +21,19 @@ CAPABILITIES = {
     "sites": "/w/dxp/sites",
     "security": "/w/dxp/security-and-administration",
     "development": "/w/dxp/development",
+    "commerce": "/w/dxp/commerce",
+    "personalization": "/w/dxp/personalization",
+    "low-code": "/w/dxp/low-code",
+    "content-management-system": "/w/dxp/content-management-system",
+    "digital-asset-management": "/w/dxp/digital-asset-management",
+    "integration": "/w/dxp/integration",
+    "ai": "/w/dxp/ai",
+    "getting-started": "/w/dxp/getting-started",
 }
 
-OUT_OF_SCOPE_PREFIXES = [
-    "/w/dxp/commerce",
-    "/w/dxp/personalization",
-    "/w/dxp/low-code",
-    "/w/dxp/content-management-system",
-    "/w/dxp/digital-asset-management",
-    "/w/dxp/integration",
-    "/w/dxp/ai",
-    "/w/dxp/getting-started",
-]
+# All 14 capabilities listed on https://learn.liferay.com/w/dxp/index are in
+# scope now; nothing under /w/dxp is deliberately excluded anymore.
+OUT_OF_SCOPE_PREFIXES: list[str] = []
 
 # (rule label, substring whose presence -- followed by more path -- excludes the URL)
 SELF_HOSTED_PRUNE_RULES = [
@@ -164,7 +165,7 @@ def main() -> None:
     print("Conteo por capability:")
     for name, urls in buckets.items():
         print(f"  {name:12s}: {len(urls)}")
-    print(f"\nTotal (6 capabilities): {summary['total_in_scope']}")
+    print(f"\nTotal ({len(CAPABILITIES)} capabilities): {summary['total_in_scope']}")
     print(f"\nSelf-hosted podadas: {len(pruned)}")
     for label, count in prune_counts.items():
         print(f"  - {label}: {count}")
