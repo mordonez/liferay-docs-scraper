@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """Weekly from-scratch refresh of the learn.liferay.com/w/dxp corpus, crawl4ai-only.
 
-No Firecrawl involved anywhere in this script -- it replaces both the old
-`firecrawl map` discovery step and scripts/extract_content.py's scraping step
-with a single crawl4ai deep crawl:
+A single crawl4ai deep crawl handles both URL discovery and content
+extraction:
 
   - A BFS deep crawl starts at /w/dxp/index and follows every internal link
     under /w/dxp/*. crawl4ai extracts links from the FULL page regardless of
     css_selector, so this single crawl gets us both (a) the complete current
-    set of URLs on the site (what `firecrawl map` used to give us) and (b)
-    each page's clean #main-content Markdown (what extract_content.py used to
-    fetch separately) in one visit per page.
-  - Each page is classified with scripts/filter_urls.py's classify_url (same
-    capability prefixes + self-hosted prune rules as before) and, if in
-    scope, cleaned with the same header-cut logic validated in
-    scripts/poc_crawl4ai.py, then written to raw/{capability}/{slug}.md.
+    set of URLs on the site and (b) each page's clean #main-content Markdown,
+    in one visit per page.
+  - Each page is classified with scripts/filter_urls.py's classify_url
+    (capability prefixes + self-hosted prune rules) and, if in scope,
+    cleaned with the header-cut logic below, then written to
+    raw/{capability}/{slug}.md.
   - Because every run starts from zero, a page that existed last run but
     isn't found this run (removed from the site, or now out of scope/pruned)
     is a *candidate* for quarantine -- but BFS link-following can miss a page
@@ -32,8 +30,13 @@ with a single crawl4ai deep crawl:
     summary.json are regenerated from this run's live results, so they always
     reflect the current corpus (same format scripts/filter_urls.py produces).
 
-Setup: see scripts/poc_crawl4ai.py header (crawl4ai + Playwright browsers in
-a Python 3.13 venv). Run with that venv activated:
+Setup (crawl4ai needs Python <=3.13 and its own Playwright browsers):
+    python3.13 -m venv .venv-crawl4ai
+    source .venv-crawl4ai/bin/activate
+    pip install crawl4ai
+    crawl4ai-setup
+
+Run (from repo root, with that venv activated):
     python3 scripts/crawl4ai_pipeline.py
     python3 scripts/crawl4ai_pipeline.py --max-pages 200   # smaller test run
 """
@@ -41,6 +44,7 @@ a Python 3.13 venv). Run with that venv activated:
 import argparse
 import asyncio
 import json
+import re
 import shutil
 import sys
 import urllib.error
@@ -49,13 +53,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from clean_boilerplate import NotCleanable, find_header_cut
-from extract_content import build_frontmatter, slugify
 from filter_urls import (
     CAPABILITIES,
     SELF_HOSTED_PRUNE_RULES,
+    build_frontmatter,
     classify_url,
     normalize,
+    slugify,
 )
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
@@ -110,10 +114,30 @@ class RunStats:
     outcomes: dict = field(default_factory=lambda: {name: [] for name in CAPABILITIES})
 
 
+class NotCleanable(Exception):
+    """Raised when a page doesn't match the expected article template, so
+    it's safer to save it un-trimmed than to risk cutting real content."""
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+# The real title heading always looks like "# [Title](url#anchor)"; anything
+# above it (within #main-content) is breadcrumb/TOC chrome to cut.
+HEADER_H1_RE = re.compile(r"^# \[.*\]\([^)]*\)\s*\\?\s*$")
+
+
+def find_header_cut(lines: list[str]) -> int:
+    for i, line in enumerate(lines):
+        if HEADER_H1_RE.match(line):
+            return i
+    raise NotCleanable("no H1 heading anchor found (unexpected page template)")
+
+
 def clean_main_content(markdown: str) -> str:
     """Header-only chrome cut (breadcrumb/TOC before the real H1). No footer
     cut needed: css_selector="#main-content" already excludes the site
-    footer, unlike Firecrawl's only_main_content output."""
+    footer and global nav."""
     lines = markdown.split("\n")
     header_cut = find_header_cut(lines)
     cleaned_lines = lines[header_cut:]

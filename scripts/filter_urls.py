@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""Deduplicate and filter learn.liferay.com/w/dxp URLs by capability.
+"""Shared URL/capability utilities for the crawl4ai_pipeline.py corpus.
 
-Reads reports/dxp_urls.json (plain text, one URL per line despite the
-extension) and produces per-capability URL lists under reports/filtered/,
-ready for the content-extraction phase.
+Capability classification (matching learn.liferay.com/w/dxp URLs to one of
+the 14 capabilities listed on /w/dxp/index, plus the self-hosted prune
+rules), and the URL->filename/frontmatter helpers used when writing pages
+to raw/{capability}/*.md.
 """
 
-import json
-from pathlib import Path
+import hashlib
+from datetime import datetime, timezone
 from urllib.parse import urlparse
-
-ROOT = Path(__file__).resolve().parent.parent
-INPUT_FILE = ROOT / "reports" / "dxp_urls.json"
-OUTPUT_DIR = ROOT / "reports" / "filtered"
 
 CAPABILITIES = {
     "cloud": "/w/dxp/cloud",
@@ -83,8 +80,8 @@ def classify_url(url: str) -> dict:
       - capability: matched capability name, or None if out of scope
       - prune_reason: self-hosted prune rule label, or None
       - known_out_of_scope: True if it matches one of the known-excluded
-        capabilities (commerce, personalization, etc.) rather than being an
-        unrecognized/"odd" URL worth flagging for manual review
+        capabilities rather than being an unrecognized/"odd" URL worth
+        flagging for manual review
     """
     path = urlparse(url).path
     matched_capability = None
@@ -101,82 +98,25 @@ def classify_url(url: str) -> dict:
     return {"capability": matched_capability, "prune_reason": reason, "known_out_of_scope": False}
 
 
-def main() -> None:
-    raw_lines = INPUT_FILE.read_text(encoding="utf-8").splitlines()
-    seen = set()
-    deduped = []
-    for line in raw_lines:
-        line = line.strip()
-        if not line:
-            continue
-        norm = normalize(line)
-        if norm in seen:
-            continue
-        seen.add(norm)
-        deduped.append(norm)
-
-    buckets: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
-    pruned: list[tuple[str, str]] = []  # (url, reason)
-    prune_counts = {label: 0 for label, _ in SELF_HOSTED_PRUNE_RULES}
-    unmatched: list[str] = []
-
-    for url in deduped:
-        classification = classify_url(url)
-        capability = classification["capability"]
-
-        if capability is None:
-            if not classification["known_out_of_scope"]:
-                unmatched.append(url)
-            continue
-
-        if classification["prune_reason"] is not None:
-            pruned.append((url, classification["prune_reason"]))
-            prune_counts[classification["prune_reason"]] += 1
-            continue
-
-        buckets[capability].append(url)
-
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    for name, urls in buckets.items():
-        out_file = OUTPUT_DIR / f"{name}_urls.txt"
-        out_file.write_text("\n".join(sorted(urls)) + "\n", encoding="utf-8")
-
-    pruned_file = OUTPUT_DIR / "self-hosted_pruned.txt"
-    pruned_lines = [f"{url}\t# {reason}" for url, reason in sorted(pruned)]
-    pruned_file.write_text("\n".join(pruned_lines) + ("\n" if pruned_lines else ""), encoding="utf-8")
-
-    summary = {
-        "capabilities": {
-            name: {"unique_urls": len(urls)} for name, urls in buckets.items()
-        },
-        "self_hosted_pruned": {
-            "total": len(pruned),
-            "by_rule": prune_counts,
-        },
-        "total_in_scope": sum(len(urls) for urls in buckets.values()),
-        "input_total_lines": len(raw_lines),
-        "input_unique_lines": len(deduped),
-        "unmatched_count": len(unmatched),
-    }
-    summary_file = OUTPUT_DIR / "summary.json"
-    summary_file.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-
-    print("Conteo por capability:")
-    for name, urls in buckets.items():
-        print(f"  {name:12s}: {len(urls)}")
-    print(f"\nTotal ({len(CAPABILITIES)} capabilities): {summary['total_in_scope']}")
-    print(f"\nSelf-hosted podadas: {len(pruned)}")
-    for label, count in prune_counts.items():
-        print(f"  - {label}: {count}")
-
-    if unmatched:
-        print(f"\nURLs sin encajar en scope ni en descartadas ({len(unmatched)}):")
-        for url in unmatched:
-            print(f"  {url}")
-    else:
-        print("\nNo hay URLs raras fuera del scope conocido.")
+def slugify(url: str, prefix: str) -> str:
+    """URL path (with the capability prefix stripped) -> a flat filename stem."""
+    path = urlparse(url).path
+    remainder = path[len(prefix):].strip("/")
+    if not remainder:
+        return "index"
+    return remainder.replace("/", "-")
 
 
-if __name__ == "__main__":
-    main()
+def build_frontmatter(url: str, capability: str, markdown: str) -> str:
+    fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    content_hash = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+    lines = [
+        "---",
+        f'url: "{url}"',
+        f"capability: {capability}",
+        f'fetched_at: "{fetched_at}"',
+        f'content_hash: "sha256:{content_hash}"',
+        "---",
+        "",
+    ]
+    return "\n".join(lines)
