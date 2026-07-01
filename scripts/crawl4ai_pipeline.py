@@ -63,7 +63,7 @@ from filter_urls import (
 )
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DomainFilter, FilterChain, URLPatternFilter
+from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, DomainFilter, FilterChain, URLPatternFilter
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "raw"
@@ -80,12 +80,6 @@ URL_SCOPE_PATTERN = "*/w/dxp*"
 # tighter still: just the title, body, and resource-type tags -- no
 # breadcrumb/TOC/"Submit Feedback" chrome to strip afterward.
 CONTENT_SELECTOR = ".learn-article-content"
-# Downloadable attachments linked FROM doc pages (sample zips, JS snippets,
-# icons) aren't doc pages themselves -- don't let BFS follow/crawl them.
-EXCLUDED_ASSET_PATTERNS = [
-    "*.zip", "*.js", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg",
-    "*.pdf", "*.css", "*.ico", "*.woff", "*.woff2",
-]
 
 DEFAULT_MAX_DEPTH = 12
 DEFAULT_MAX_PAGES = 3000
@@ -142,7 +136,7 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
     filter_chain = FilterChain([
         DomainFilter(allowed_domains=[ALLOWED_DOMAIN]),
         URLPatternFilter(patterns=[URL_SCOPE_PATTERN]),
-        URLPatternFilter(patterns=EXCLUDED_ASSET_PATTERNS, reverse=True),
+        ContentTypeFilter(allowed_types=["text/html"]),
     ])
     strategy = BFSDeepCrawlStrategy(
         max_depth=max_depth, filter_chain=filter_chain, max_pages=max_pages, include_external=False,
