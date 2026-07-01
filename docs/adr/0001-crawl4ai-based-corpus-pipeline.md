@@ -2,17 +2,16 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-01
-- **Scope:** `scripts/crawl4ai_pipeline.py`, `scripts/filter_urls.py`, `scripts/check_regressions.py`, `raw/`, `reports/filtered/`
+- **Scope:** `src/liferay_docs_scraper/pipeline.py`, `filter_urls.py`, `check_regressions.py` (paths as of this writing were `scripts/crawl4ai_pipeline.py` etc.; the project was later repackaged as an installable tool, see the repo's own history/later ADRs), the `raw/` docs folder and `reports/filtered/` manifests it produces.
 
 ## Context
 
-The corpus is a Markdown mirror of `learn.liferay.com/w/dxp/*` (all 14
+The docs are a Markdown mirror of `learn.liferay.com/w/dxp/*` (all 14
 capabilities: cloud, search, self-hosted, sites, security, development,
 commerce, personalization, low-code, content-management-system,
-digital-asset-management, integration, ai, getting-started), used as source
-material for a later, separate distillation phase (`docs/distill_system_prompt.txt`,
-`scripts/classify_pages.py`, `scripts/build_nav_index.py`,
-`scripts/save_distilled.py` — untouched by this ADR).
+digital-asset-management, integration, ai, getting-started), meant as
+grounding material a Claude Code skill searches and cites when answering
+Liferay DXP questions.
 
 The project needs to **re-run the whole pipeline from scratch every week**
 to pick up new pages, detect removed pages, and refresh changed content.
@@ -38,16 +37,13 @@ then `firecrawl scrape` per URL for content, both via the already-authenticated
 ## Decision
 
 Replace Firecrawl entirely with **crawl4ai**, a free, self-hosted,
-Playwright-based crawler, run from an isolated Python 3.13 virtualenv
-(`.venv-crawl4ai/`, kept out of git) because crawl4ai's dependency chain
-did not yet support the system's Python 3.14 at the time of writing.
-
-```
-python3.13 -m venv .venv-crawl4ai
-source .venv-crawl4ai/bin/activate
-pip install crawl4ai
-crawl4ai-setup   # installs the Playwright/Patchright Chromium builds
-```
+Playwright-based crawler. It needs Python <=3.13 (its dependency chain did
+not yet support the system's Python 3.14 at the time of writing) -- run
+initially from an ad hoc virtualenv, later packaged properly as an
+installable `uv`/PyPI tool (`uvx liferay-docs-scraper`), which resolves the
+Python-version constraint automatically instead of requiring a manually
+managed venv. `crawl4ai-setup` (installs the Playwright/Patchright Chromium
+builds) is still a required one-time step either way.
 
 A single `crawl4ai` **BFS deep crawl** (`BFSDeepCrawlStrategy`, seeded at
 `/w/dxp/index`) now does both discovery and extraction in one pass per
@@ -156,7 +152,8 @@ Mitigations, in order of where they act:
   giving up. If still broken, the page is **never written** — an existing
   good file is left untouched rather than overwritten with garbage, and the
   URL is reported under "fetch failures" for manual attention.
-- `scripts/check_regressions.py`, run **after** every pipeline run, diffs
+- `check_regressions.py` (`check-regressions` as an installed entry point),
+  run **after** every pipeline run, diffs
   every changed `raw/**/*.md` body (frontmatter excluded) against a given
   git ref (default `HEAD`) and flags:
   - **shrinkage** below 50% of the previous size (default
@@ -233,18 +230,19 @@ only changed which already-fetched pages get persisted.
   couldn't handle.
 - Full 14-capability coverage, not a 6-capability subset chosen for cost
   reasons.
-- `scripts/` shrank from 9 files to 6 relevant ones (`crawl4ai_pipeline.py`,
-  `filter_urls.py`, `check_regressions.py`, plus the untouched distillation
-  scripts): `extract_content.py`, `poc_crawl4ai.py`, and
-  `clean_boilerplate.py` were deleted as dead weight, along with the
-  one-time `reports/dxp_urls.json` Firecrawl-map dump.
+- The Firecrawl-era scraping scripts (`extract_content.py`, `poc_crawl4ai.py`,
+  `clean_boilerplate.py`) and the one-time `reports/dxp_urls.json`
+  Firecrawl-map dump were deleted as dead weight, leaving just
+  `pipeline.py`, `filter_urls.py`, and `check_regressions.py`.
 
 **Negative / accepted risks**
 
-- Requires a separate Python 3.13 virtualenv and ~350MB of downloaded
-  Chromium browser builds, kept outside git (`.venv-crawl4ai/` is
-  gitignored) — an operational dependency Firecrawl (a hosted API) didn't
-  have.
+- Requires ~350MB of downloaded Chromium browser builds (`crawl4ai-setup`)
+  and a <=3.13 Python interpreter -- an operational dependency Firecrawl (a
+  hosted API) didn't have. Packaging as a `uv`-installable tool later made
+  the interpreter-version part of this a non-issue (`uv` fetches the right
+  Python automatically), but the browser download is inherent to
+  self-hosted, headless-browser crawling and isn't going away.
 - Self-hosted headless-browser crawling surfaced content-integrity bugs
   (error banners reported as success, cross-page content mixups,
   truncated renders) that a hosted, more mature scraping API might handle
@@ -265,7 +263,7 @@ only changed which already-fetched pages get persisted.
 ## Lessons learned (for future runs / future migrations like this one)
 
 1. **Initialize version control *before* running anything that overwrites
-   a corpus in place, not after.** This repo had no git history when the
+   a docs folder in place, not after.** This repo had no git history when the
    first full crawl4ai run started; by the time `git init` happened
    (prompted by the user asking "shouldn't we have backed this up first?"),
    a large fraction of `raw/` had already been overwritten with no way to
@@ -299,14 +297,19 @@ only changed which already-fetched pages get persisted.
 ## Follow-ups (explicitly deferred, not part of this decision)
 
 - No cron/scheduled job has been configured yet to actually run this
-  weekly and unattended — `crawl4ai_pipeline.py` is ready for that, but
-  wiring up the recurring execution was intentionally left as a separate,
-  explicit step requiring its own confirmation.
+  weekly and unattended — `pipeline.py` is ready for that, but wiring up
+  the recurring execution was intentionally left as a separate, explicit
+  step requiring its own confirmation.
 - The 21 "known-live-but-unlinked" pages are not being actively
   re-fetched; they need either periodic manual attention or a future
   decision on whether to seed them explicitly (e.g., a small hardcoded
   seed list) so they participate in the diffing/refresh cycle like
   everything else.
-- The distillation phase (`classify_pages.py`, `build_nav_index.py`,
-  `save_distilled.py`, `docs/distill_system_prompt.txt`) is unrelated to
-  and unaffected by this decision.
+- A separate, later decision dropped the distillation phase entirely
+  (manual, one-page-at-a-time summarization didn't scale to the docs'
+  size) rather than leaving it "unrelated and unaffected" as originally
+  assumed here -- the Claude Code skill this docs folder feeds reads `raw/`
+  directly instead. `classify_pages.py`'s navigation-vs-content heuristic
+  survived that change: it's now used inline by this pipeline to route
+  pure navigation/TOC pages to `raw/_navigation/{capability}/` instead of
+  `raw/{capability}/`, rather than as input to a distillation step.

@@ -1,16 +1,16 @@
 ---
 name: liferay-expert
-description: Answer Liferay DXP technical questions by searching and reading a locally scraped documentation corpus (hundreds of pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
+description: Answer Liferay DXP technical questions by searching and reading locally scraped documentation (hundreds of pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
 ---
 
 # Liferay Expert
 
-Ground every Liferay DXP answer in the scraped corpus — don't answer from
+Ground every Liferay DXP answer in the scraped docs — don't answer from
 memory alone when this skill applies. Find the actual doc, read it, cite it.
 
-## Step 1: find the corpus
+## Step 1: find the docs
 
-The corpus lives in one shared location, not in whatever project you're
+The docs live in one shared location, not in whatever project you're
 currently in (so it isn't duplicated per-project). Resolve it once per
 conversation:
 
@@ -78,7 +78,7 @@ than guessing one and stopping.
   skip them, their linked subpages exist as real files elsewhere.
 - `raw/_removed/{capability}/` = pages no longer on the live site. Only use
   as a last resort, and say explicitly that the source may be outdated.
-- The corpus refreshes on demand via `uvx liferay-docs-scraper` (rerun weekly if
+- The docs refresh on demand via `uvx liferay-docs-scraper` (rerun weekly if
   you want to stay current); each file's `fetched_at` frontmatter tells you how
   current it is.
 - `reports/filtered/{capability}_urls.txt` lists every in-scope URL per

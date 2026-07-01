@@ -9,7 +9,7 @@ last commit) for every raw/**/*.md file:
     crawl4ai falling back to the whole page (breadcrumb/nav/footer chrome
     and all) instead of raising an error.
 
-Operates on filter_urls.resolve_docs_dir() (the same shared corpus location
+Operates on filter_urls.resolve_docs_dir() (the same shared docs location
 the scraper writes to and the skill reads from), not the current directory.
 
 Usage:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Weekly from-scratch refresh of the learn.liferay.com/w/dxp corpus, crawl4ai-only.
+"""Weekly from-scratch refresh of the learn.liferay.com/w/dxp docs, crawl4ai-only.
 
 Builds raw/{capability}/*.md under filter_urls.resolve_docs_dir(): the
 $LIFERAY_DOCS_DIR directory if that env var is set, otherwise one shared,
@@ -8,7 +8,7 @@ Support/liferay-docs on macOS, %LOCALAPPDATA%\\liferay-docs on Windows,
 ~/.local/share/liferay-docs on Linux). Deliberately NOT the current working
 directory -- the liferay-expert skill looks in that same shared location
 regardless of which project you're in when you ask a question, so you
-don't end up with a separate copy of the corpus per project.
+don't end up with a separate copy of the docs per project.
 
 A single crawl4ai deep crawl handles both URL discovery and content
 extraction:
@@ -44,7 +44,7 @@ extraction:
     possibly-broken run.
   - reports/filtered/{capability}_urls.txt, self-hosted_pruned.txt and
     summary.json are regenerated from this run's live results, so they always
-    reflect the current corpus (same format filter_urls.py produces).
+    reflect the current docs (same format filter_urls.py produces).
   - Once everything above is written, check_regressions.py's run_check()
     runs automatically against the last git commit, if resolve_docs_dir()
     is itself a git repo (worth `git init`-ing once, purely as a local
@@ -226,7 +226,7 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
 
             # Pure navigation/TOC pages (per classify_pages.py's heuristic)
             # go to raw/_navigation/ instead of raw/{capability}/, so the
-            # corpus a future consultation skill reads stays high-signal.
+            # docs a future consultation skill reads stays high-signal.
             total_words, link_ratio = analyze_body(markdown)
             is_navigation = classify_navigation(total_words, link_ratio) == "index"
 
