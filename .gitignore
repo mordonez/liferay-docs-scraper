@@ -5,3 +5,5 @@ raw/
 reports/filtered/
 dist/
 *.egg-info/
+.secrets/
+*.pypirc

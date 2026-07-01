@@ -17,7 +17,7 @@ skill, then ask questions.
 
 ```bash
 uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
-uvx liferay-docs-scraper             # scrapes learn.liferay.com into a shared local corpus
+uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper
 ```
 
 Run this from anywhere -- it does not write into your current directory,
@@ -26,12 +26,10 @@ see "Reference: the scraper in detail" below for exactly where it goes.
 **2. Install the skill into whatever project you're working in:**
 
 ```bash
-npx skills add <owner>/liferay-docs-scraper --skill liferay-expert -a claude-code
+npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
 ```
 
-(No GitHub remote to point at yet? `npx skills add` also accepts a local
-path, e.g. `npx skills add /path/to/liferay-docs-scraper --skill liferay-expert`,
-useful for testing before you publish anywhere.) You'll see:
+You'll see:
 
 ```
 ◇  Installed 1 skill ───────────────────╮
@@ -68,8 +66,9 @@ support 3.14) and [uv](https://docs.astral.sh/uv/).
 # One-time: installs the Playwright/Chromium browser crawl4ai drives
 uvx --from crawl4ai crawl4ai-setup
 
-# From anywhere -- the corpus does NOT go in your current directory:
-uvx --python 3.13 --from liferay-docs-scraper liferay-docs-scraper
+# From anywhere -- the corpus does NOT go in your current directory.
+# Not on PyPI yet, so install straight from GitHub:
+uvx --python 3.13 --from "git+https://github.com/mordonez/liferay-docs-scraper" liferay-docs-scraper
 ```
 
 This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14
@@ -103,7 +102,7 @@ the last commit (signals of a broken fetch); see
 ## Reference: the skill in detail
 
 ```bash
-npx skills add https://github.com/<you>/liferay-docs-scraper/tree/main/skills/liferay-expert
+npx skills add mordonez/liferay-docs-scraper --skill liferay-expert
 ```
 
 Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-expert/`
