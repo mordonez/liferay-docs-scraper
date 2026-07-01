@@ -1,12 +1,44 @@
 # liferay-docs-scraper
 
-Scrapes `learn.liferay.com/w/dxp/*` into a local, clean Markdown corpus
-(`raw/{capability}/*.md`) and ships a Claude Code skill (`liferay-expert`)
-that answers Liferay DXP questions by searching and citing that corpus.
+Scrape `learn.liferay.com/w/dxp/*` into a local Markdown corpus, then answer
+Liferay DXP questions in Claude Code by grepping and citing it — no
+bundled docs, no embeddings, no vector DB.
 
-**This repo does not ship Liferay's documentation.** It ships the code that
-scrapes it, and a skill that reads whatever you scrape locally. Each user
-builds and refreshes their own copy directly from learn.liferay.com.
+[![PyPI](https://img.shields.io/pypi/v/liferay-docs-scraper.svg)](https://pypi.org/project/liferay-docs-scraper/)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://pypi.org/project/liferay-docs-scraper/)
+
+## What makes this different
+
+- **No bundled copyrighted content.** This repo and the PyPI package ship
+  only the scraping tool, never Liferay's documentation text. Each user
+  scrapes their own local copy directly from learn.liferay.com. See
+  [`docs/adr/0001-crawl4ai-based-corpus-pipeline.md`](docs/adr/0001-crawl4ai-based-corpus-pipeline.md)
+  for the full reasoning on why that's the safer distribution model.
+- **No embeddings, no vector DB.** Plain `grep` + `Read` over ~1,800
+  well-organized Markdown files is fast enough — the `liferay-expert` skill
+  just searches the corpus directly.
+- **One shared corpus, not per-project.** The scraper writes to a single
+  OS-appropriate per-user directory (resolved by `resolve_docs_dir()`), so
+  every project that installs the skill reads the same corpus instead of
+  duplicating a ~30-40 minute scrape.
+
+## How it works
+
+1. **Scrape:** `uvx liferay-docs-scraper` runs a [crawl4ai](https://github.com/unclecode/crawl4ai)
+   (free, self-hosted, Playwright-based) BFS crawl of `learn.liferay.com/w/dxp/*`
+   and writes clean Markdown to `raw/{capability}/*.md`, one file per page,
+   across 14 Liferay DXP capabilities.
+2. **Install:** `npx skills add mordonez/liferay-docs-scraper --skill liferay-expert`
+   drops the `liferay-expert` skill into any project's `.claude/skills/`.
+3. **Ask:** Claude Code greps the corpus for the relevant capability, reads
+   the matching page(s), and answers — always citing the source URL from
+   that file's frontmatter.
+
+## Contents
+
+- [Quickstart](#quickstart)
+- [Reference: the scraper in detail](#reference-the-scraper-in-detail)
+- [Reference: the skill in detail](#reference-the-skill-in-detail)
 
 ## Quickstart
 
@@ -108,12 +140,3 @@ Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-exper
 in any project. Claude Code picks it up automatically; the skill itself
 resolves `$LIFERAY_DOCS_DIR` (or the OS default above) to find the corpus,
 so it works the same regardless of which project you installed it into.
-
-## Why no bundled docs, no embeddings, no vector DB
-
-See `docs/adr/` for the full reasoning. Short version: the corpus is
-Liferay's copyrighted documentation text -- distributing the *tool* that
-scrapes public pages is a different, much lower-risk thing than a third
-party redistributing that text at scale. Plain grep + Read over ~1800
-well-organized Markdown files is fast enough that no search index is needed;
-add one later if that stops being true.
