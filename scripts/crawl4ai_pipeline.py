@@ -13,7 +13,14 @@ extraction:
     crawl4ai returns is already the final page content.
   - Each page is classified with scripts/filter_urls.py's classify_url
     (capability prefixes + self-hosted prune rules) and, if in scope,
-    written to raw/{capability}/{slug}.md.
+    written to raw/{capability}/{slug}.md -- unless scripts/classify_pages.py's
+    heuristic (reused here, not duplicated) says it's a pure navigation/TOC
+    page with no substantial content of its own, in which case it goes to
+    raw/_navigation/{capability}/{slug}.md instead. This keeps raw/{capability}/
+    as signal for the future Liferay-expert consultation skill, while still
+    preserving the navigation pages (not deleting them) in case they're
+    useful later (see reports/low_value_candidates.md for the analysis that
+    led to this).
   - Because every run starts from zero, a page that existed last run but
     isn't found this run (removed from the site, or now out of scope/pruned)
     is a *candidate* for quarantine -- but BFS link-following can miss a page
@@ -53,6 +60,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from classify_pages import analyze_body, classify as classify_navigation
 from filter_urls import (
     CAPABILITIES,
     SELF_HOSTED_PRUNE_RULES,
@@ -68,6 +76,7 @@ from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, Doma
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "raw"
 REMOVED_DIR = RAW_DIR / "_removed"
+NAVIGATION_DIR = RAW_DIR / "_navigation"
 FILTERED_DIR = ROOT / "reports" / "filtered"
 REMOVED_LOG = FILTERED_DIR / "removed_log.jsonl"
 
@@ -103,6 +112,7 @@ class PageOutcome:
     capability: str
     slug: str
     status: str  # "new" | "updated" | "unchanged"
+    is_navigation: bool = False
 
 
 @dataclass
@@ -194,9 +204,6 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
 
             prefix = CAPABILITIES[capability]
             slug = slugify(url, prefix)
-            out_dir = RAW_DIR / capability
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / f"{slug}.md"
 
             markdown = result.markdown.raw_markdown
             if is_broken_content(markdown):
@@ -207,10 +214,24 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
                     stats.fetch_failed.append(url)
                     continue
 
+            # Pure navigation/TOC pages (per classify_pages.py's heuristic)
+            # go to raw/_navigation/ instead of raw/{capability}/, so the
+            # corpus a future consultation skill reads stays high-signal.
+            total_words, link_ratio = analyze_body(markdown)
+            is_navigation = classify_navigation(total_words, link_ratio) == "index"
+
+            content_path = RAW_DIR / capability / f"{slug}.md"
+            navigation_path = NAVIGATION_DIR / capability / f"{slug}.md"
+            out_path = navigation_path if is_navigation else content_path
+            other_path = content_path if is_navigation else navigation_path
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+
             new_content = build_frontmatter(url, capability, markdown) + markdown
-            old_hash_line = read_existing_hash(out_path)
-            existed_before = out_path.exists()
+            old_hash_line = read_existing_hash(out_path) or read_existing_hash(other_path)
+            existed_before = out_path.exists() or other_path.exists()
             out_path.write_text(new_content, encoding="utf-8")
+            if other_path.exists():
+                other_path.unlink()  # reclassified since last run -- drop the stale copy
             new_hash_line = read_existing_hash(out_path)
 
             if not existed_before:
@@ -219,7 +240,7 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
                 status = "unchanged"
             else:
                 status = "updated"
-            stats.outcomes[capability].append(PageOutcome(url, capability, slug, status))
+            stats.outcomes[capability].append(PageOutcome(url, capability, slug, status, is_navigation))
 
     return stats
 
@@ -249,26 +270,29 @@ def is_confirmed_gone(url: str, timeout: float = 10.0) -> bool:
 
 
 def quarantine_orphans(stats: RunStats) -> dict:
-    """Move raw/{capability}/*.md files that this run didn't touch to
-    raw/_removed/{capability}/ -- but only after directly confirming the
-    URL is actually gone (see is_confirmed_gone). Orphans that turn out to
-    still be live, or that we couldn't check, are left in place and reported
-    separately so a human can look into the crawl's coverage gap."""
+    """Move raw/{capability}/*.md and raw/_navigation/{capability}/*.md files
+    that this run didn't touch to raw/_removed/{capability}/ -- but only
+    after directly confirming the URL is actually gone (see
+    is_confirmed_gone). Orphans that turn out to still be live, or that we
+    couldn't check, are left in place and reported separately so a human
+    can look into the crawl's coverage gap."""
     quarantined: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
     still_alive: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
     skipped_capabilities: list[str] = []
 
     for capability in CAPABILITIES:
-        out_dir = RAW_DIR / capability
-        if not out_dir.exists():
+        content_dir = RAW_DIR / capability
+        navigation_dir = NAVIGATION_DIR / capability
+        on_disk_paths = {p.stem: p for p in content_dir.glob("*.md")}
+        on_disk_paths.update({p.stem: p for p in navigation_dir.glob("*.md")})
+        if not on_disk_paths:
             continue
 
         # Only files untouched by this run's outcomes are orphans.
         current_slugs = {o.slug for o in stats.outcomes[capability]}
-        on_disk = {p.stem for p in out_dir.glob("*.md")}
-        orphans = on_disk - current_slugs
+        orphans = set(on_disk_paths) - current_slugs
 
-        previous_count = len(on_disk)
+        previous_count = len(on_disk_paths)
         new_count = len(current_slugs)
         if previous_count > 0 and new_count < QUARANTINE_SAFETY_RATIO * previous_count:
             skipped_capabilities.append(capability)
@@ -281,7 +305,7 @@ def quarantine_orphans(stats: RunStats) -> dict:
         removed_dir.mkdir(parents=True, exist_ok=True)
         removed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         for slug in sorted(orphans):
-            src = out_dir / f"{slug}.md"
+            src = on_disk_paths[slug]
             url = read_url_from_file(src)
             if url is None or not is_confirmed_gone(url):
                 still_alive[capability].append(slug)
@@ -308,16 +332,27 @@ def write_filtered_reports(stats: RunStats) -> None:
         "\n".join(pruned_lines) + ("\n" if pruned_lines else ""), encoding="utf-8",
     )
 
+    navigation_urls = sorted(
+        o.url for outcomes in stats.outcomes.values() for o in outcomes if o.is_navigation
+    )
+    (FILTERED_DIR / "navigation_urls.txt").write_text(
+        "\n".join(navigation_urls) + ("\n" if navigation_urls else ""), encoding="utf-8",
+    )
+
     prune_counts = {label: 0 for label, _ in SELF_HOSTED_PRUNE_RULES}
     for _, reason in stats.pruned:
         prune_counts[reason] += 1
 
     summary = {
         "capabilities": {
-            name: {"unique_urls": len(stats.outcomes[name])} for name in CAPABILITIES
+            name: {
+                "unique_urls": len(stats.outcomes[name]),
+                "navigation_pages": sum(1 for o in stats.outcomes[name] if o.is_navigation),
+            } for name in CAPABILITIES
         },
         "self_hosted_pruned": {"total": len(stats.pruned), "by_rule": prune_counts},
         "total_in_scope": sum(len(stats.outcomes[name]) for name in CAPABILITIES),
+        "total_navigation_pages": len(navigation_urls),
         "discovered_total": stats.discovered_total,
         "fetch_failed_count": len(stats.fetch_failed),
         "unmatched_count": len(stats.unmatched),
@@ -332,16 +367,20 @@ def print_summary(stats: RunStats, quarantine_result: dict) -> None:
         for url in stats.fetch_failed:
             print(f"  - {url}")
 
-    print("\nPor capability (nuevas / actualizadas / sin cambios):")
+    print("\nPor capability (nuevas / actualizadas / sin cambios / navegación):")
     total_in_scope = 0
+    total_navigation = 0
     for capability, outcomes in stats.outcomes.items():
         new = sum(1 for o in outcomes if o.status == "new")
         updated = sum(1 for o in outcomes if o.status == "updated")
         unchanged = sum(1 for o in outcomes if o.status == "unchanged")
+        navigation = sum(1 for o in outcomes if o.is_navigation)
         total_in_scope += len(outcomes)
+        total_navigation += navigation
         print(f"  {capability:12s}: {len(outcomes):4d} total  "
-              f"({new} nuevas, {updated} actualizadas, {unchanged} sin cambios)")
-    print(f"\nTotal en scope: {total_in_scope}")
+              f"({new} nuevas, {updated} actualizadas, {unchanged} sin cambios, {navigation} navegación)")
+    print(f"\nTotal en scope: {total_in_scope} ({total_navigation} en raw/_navigation/, "
+          f"{total_in_scope - total_navigation} en raw/{{capability}}/)")
 
     print(f"\nSelf-hosted podadas: {len(stats.pruned)}")
 
