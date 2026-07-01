@@ -1,0 +1,73 @@
+# Sites
+
+Source: https://learn.liferay.com/w/dxp/sites
+
+- [Getting Started with Site Building](https://learn.liferay.com/w/dxp/sites/getting-started-with-site-building)
+- [Adding a Site](https://learn.liferay.com/w/dxp/sites/adding-a-site)
+- **Site Templates** — https://learn.liferay.com/w/dxp/sites/site-templates
+  - [Creating Site Templates](https://learn.liferay.com/w/dxp/sites/site-templates/creating-site-templates)
+  - [Exporting/Importing Site Templates](https://learn.liferay.com/w/dxp/sites/site-templates/exporting-importing-site-templates)
+  - [Handling Friendly URL Conflicts in Site Templates](https://learn.liferay.com/w/dxp/sites/site-templates/handling-friendly-url-conflicts-in-site-templates)
+  - [Propagating Template Changes (for Liferay DXP 2025.Q4 and Earlier Versions)](https://learn.liferay.com/w/dxp/sites/site-templates/propagating-template-changes)
+  - [Configuring Site Template Propagation (for Liferay DXP 2025.Q4 and Earlier Versions)](https://learn.liferay.com/w/dxp/sites/site-templates/configuring-site-template-propagation)
+- [Site Hierarchies](https://learn.liferay.com/w/dxp/sites/site-hierarchies)
+- **Site Membership** — https://learn.liferay.com/w/dxp/sites/site-membership
+  - [Adding Members to Sites](https://learn.liferay.com/w/dxp/sites/site-membership/adding-members-to-sites)
+  - [Inviting Members to Your Site](https://learn.liferay.com/w/dxp/sites/site-membership/inviting-members-to-your-site)
+  - [Changing Site Membership Type](https://learn.liferay.com/w/dxp/sites/site-membership/changing-site-membership-type)
+  - [Creating Teams for Sites](https://learn.liferay.com/w/dxp/sites/site-membership/creating-teams-for-sites)
+  - [Configuring Role and Team Defaults for Site Members](https://learn.liferay.com/w/dxp/sites/site-membership/configuring-role-and-team-defaults-for-site-members)
+- [Personal Sites](https://learn.liferay.com/w/dxp/sites/personal-sites)
+- [Default Site Applications](https://learn.liferay.com/w/dxp/sites/default-site-applications)
+- **Creating Pages** — https://learn.liferay.com/w/dxp/sites/creating-pages
+  - [Understanding Pages](https://learn.liferay.com/w/dxp/sites/creating-pages/understanding-pages)
+  - [Adding Pages](https://learn.liferay.com/w/dxp/sites/creating-pages/adding-pages)
+  - [Using Content Pages](https://learn.liferay.com/w/dxp/sites/creating-pages/using-content-pages)
+  - [Defining Headers and Footers](https://learn.liferay.com/w/dxp/sites/creating-pages/defining-headers-and-footers)
+  - [Using Widget Pages](https://learn.liferay.com/w/dxp/sites/creating-pages/using-widget-pages)
+  - [Page Fragments and Widgets](https://learn.liferay.com/w/dxp/sites/creating-pages/page-fragments-and-widgets)
+  - [Page Settings](https://learn.liferay.com/w/dxp/sites/creating-pages/page-settings)
+- **Displaying Content** — https://learn.liferay.com/w/dxp/sites/displaying-content
+  - [Collections and Collection Pages](https://learn.liferay.com/w/dxp/sites/displaying-content/collections-and-collection-pages)
+  - [Using the Asset Publisher Widget](https://learn.liferay.com/w/dxp/sites/displaying-content/using-the-asset-publisher-widget)
+  - [Defining Content Relationships](https://learn.liferay.com/w/dxp/sites/displaying-content/defining-content-relationships)
+  - [Using Display Page Templates](https://learn.liferay.com/w/dxp/sites/displaying-content/using-display-page-templates)
+  - [Additional Content Display Options](https://learn.liferay.com/w/dxp/sites/displaying-content/additional-content-display-options)
+  - [Using Information Templates](https://learn.liferay.com/w/dxp/sites/displaying-content/using-information-templates)
+- **Site Navigation** — https://learn.liferay.com/w/dxp/sites/site-navigation
+  - [Managing Page Hierarchies](https://learn.liferay.com/w/dxp/sites/site-navigation/managing-page-hierarchies)
+  - [Using the Navigation Menus Application](https://learn.liferay.com/w/dxp/sites/site-navigation/using-the-navigation-menus-application)
+  - [Adding Icons to Navigation Menu Elements](https://learn.liferay.com/w/dxp/sites/site-navigation/adding-icons-to-navigation-menu-elements)
+  - [Configuring Menu Displays](https://learn.liferay.com/w/dxp/sites/site-navigation/configuring-menu-displays)
+  - [Navigation Menu Element Types](https://learn.liferay.com/w/dxp/sites/site-navigation/navigation-menu-element-types)
+  - [Using the Breadcrumb Widget](https://learn.liferay.com/w/dxp/sites/site-navigation/using-the-breadcrumb-widget)
+  - [Navigation Menu API Basics](https://learn.liferay.com/w/dxp/integration/headless-apis/site-apis/navigation-menu-api-basics)
+- **Site Appearance** — https://learn.liferay.com/w/dxp/sites/site-appearance
+  - [Site Appearance](https://learn.liferay.com/w/dxp/sites/site-appearance)
+  - [Master Page Templates](https://learn.liferay.com/w/dxp/sites/creating-pages/defining-headers-and-footers/master-page-templates)
+  - [Themes](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/themes)
+  - [Style Books](https://learn.liferay.com/w/dxp/sites/site-appearance/style-books)
+- **Site Settings** — https://learn.liferay.com/w/dxp/sites/site-settings
+  - [Managing Site URLs](https://learn.liferay.com/w/dxp/sites/site-settings/managing-site-urls)
+  - [Site Content Configurations](https://learn.liferay.com/w/dxp/sites/site-settings/site-content-configurations)
+  - [Site Localization](https://learn.liferay.com/w/dxp/sites/site-settings/site-localization)
+  - [Adding a New Analytics Service](https://learn.liferay.com/w/dxp/sites/site-settings/adding-a-new-analytics-service)
+  - [Configuring Open Graph for Sites](https://learn.liferay.com/w/dxp/sites/site-settings/configuring-open-graph-for-sites)
+  - [Configuring Hreflang Meta Data](https://learn.liferay.com/w/dxp/sites/site-settings/configuring-hreflang-meta-data)
+  - [Site Settings UI Reference](https://learn.liferay.com/w/dxp/sites/site-settings/site-settings-ui-reference)
+  - [Site Level Maintenance Mode](https://learn.liferay.com/w/dxp/sites/site-settings/site-level-maintenance-mode)
+- **Publishing Tools** — https://learn.liferay.com/w/dxp/sites/publishing-tools
+  - [Comparing Publishing Tools](https://learn.liferay.com/w/dxp/sites/publishing-tools/comparing-publishing-tools)
+  - [Publications](https://learn.liferay.com/w/dxp/sites/publishing-tools/publications)
+  - [Staging](https://learn.liferay.com/w/dxp/sites/publishing-tools/staging)
+- [Promoting Content to New Environments](https://learn.liferay.com/w/dxp/sites/promoting-content-to-new-environments)
+- **Exporting/Importing Data with LAR Files** — https://learn.liferay.com/w/dxp/sites/exporting-importing-data-with-lar-files
+  - [Handling Missing References in Imports](https://learn.liferay.com/w/dxp/sites/exporting-importing-data-with-lar-files/handling-missing-references-in-imports)
+- **Optimizing Sites** — https://learn.liferay.com/w/dxp/sites/optimizing-sites
+  - [Configuring SEO and Open Graph Settings for Display Page Templates](https://learn.liferay.com/w/dxp/sites/displaying-content/using-display-page-templates/configuring-seo-and-open-graph-settings-for-display-page-templates)
+  - [Configuring Open Graph for Sites](https://learn.liferay.com/w/dxp/sites/site-settings/configuring-open-graph-for-sites)
+  - [Configuring XML Sitemaps](https://learn.liferay.com/w/dxp/sites/site-settings/managing-site-urls/configuring-xml-sitemaps)
+  - [Page Performance and Accessibility](https://learn.liferay.com/w/dxp/content-management-system/page-performance-and-accessibility)
+  - [A/B Testing](https://learn.liferay.com/w/dxp/sites/optimizing-sites/ab-testing)
+  - [Building a Responsive Site](https://learn.liferay.com/w/dxp/sites/optimizing-sites/building-a-responsive-site)
+  - [Single-Page Application (SPA)](https://learn.liferay.com/w/dxp/sites/optimizing-sites/single-page-application)

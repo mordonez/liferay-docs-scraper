@@ -1,0 +1,77 @@
+# Development
+
+Source: https://learn.liferay.com/w/dxp/development
+
+- **Building Applications** — https://learn.liferay.com/w/dxp/development/building-applications
+  - [Building a Custom Ticketing System](https://learn.liferay.com/w/dxp/development/building-applications/building-a-custom-ticketing-system)
+  - [Building a Time Off Requester](https://learn.liferay.com/w/dxp/development/building-applications/building-a-time-off-requester)
+  - [Using Object Data with React Charts](https://learn.liferay.com/w/dxp/development/building-applications/using-object-data-with-react-charts)
+- **Client Extensions** — https://learn.liferay.com/w/dxp/development/client-extensions
+  - [Working with Client Extensions](https://learn.liferay.com/w/dxp/development/client-extensions/working-with-client-extensions)
+  - [Packaging Client Extensions](https://learn.liferay.com/w/dxp/development/client-extensions/packaging-client-extensions)
+  - [Client Extension Reference](https://learn.liferay.com/w/dxp/development/client-extensions/client-extension-reference)
+- **Customizing Liferay's Look and Feel** — https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel
+  - [Using a Theme Favicon Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-theme-favicon-client-extension)
+  - [Using a CSS Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-css-client-extension)
+  - [Using a Theme CSS Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-theme-css-client-extension)
+  - [Using a JavaScript Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-javascript-client-extension)
+  - [Using a Theme Sprite Map Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-theme-spritemap-client-extension)
+  - [Using a Frontend Data Set Filter Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-frontend-data-set-filter-client-extension)
+  - [Using an Editor Config Contributor Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-an-editor-config-contributor-client-extension)
+  - [Using a Frontend Data Set Cell Renderer Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/using-a-frontend-data-set-cell-renderer-client-extension)
+  - [Bundling Resources in a JavaScript Import Map Entry Client Extension](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/bundling-resources-in-a-javascript-import-map-entry-client-extension)
+  - [Client Extensions UI Reference](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/client-extensions-ui-reference)
+  - [Micro Frontends](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/micro-frontends)
+  - [Themes](https://learn.liferay.com/w/dxp/development/customizing-liferays-look-and-feel/themes)
+- **Integrating External Applications** — https://learn.liferay.com/w/dxp/development/integrating-external-applications
+  - [Using an IFrame Client Extension](https://learn.liferay.com/w/dxp/development/integrating-external-applications/using-an-iframe-client-extension)
+  - [Creating a Basic Custom Element](https://learn.liferay.com/w/dxp/development/integrating-external-applications/creating-a-basic-custom-element)
+  - [Using Routes with Custom Elements](https://learn.liferay.com/w/dxp/development/integrating-external-applications/using-routes-with-custom-elements)
+- **Configuration as Code** — https://learn.liferay.com/w/dxp/development/configuration-as-code
+  - [Language Client Extensions](https://learn.liferay.com/w/dxp/development/configuration-as-code/using-a-language-client-extension)
+  - [Instance Settings YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/configuration-as-code/instance-settings-yaml-configuration-reference)
+  - [OAuth User Agent YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/configuration-as-code/oauth-user-agent-yaml-configuration-reference)
+  - [OAuth Headless Server YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/configuration-as-code/oauth-headless-server-yaml-configuration-reference)
+- **Integrating Microservices** — https://learn.liferay.com/w/dxp/development/integrating-microservices
+  - [Using a Microservice Client Extension](https://learn.liferay.com/w/dxp/development/integrating-microservices/using-a-microservice-client-extension)
+  - [Using a CAPTCHA Client Extension](https://learn.liferay.com/w/dxp/development/integrating-microservices/using-a-captcha-client-extension)
+  - [Object Action YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/integrating-microservices/object-action-yaml-configuration-reference)
+  - [Object Validation Rule YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/integrating-microservices/object-validation-rule-yaml-configuration-reference)
+  - [Workflow Action YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/integrating-microservices/workflow-action-yaml-configuration-reference)
+  - [Notification Type YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/integrating-microservices/notification-type-yaml-configuration-reference)
+- **Importing/Exporting Data** — https://learn.liferay.com/w/dxp/development/importing-exporting-data
+  - [Site Initializers](https://learn.liferay.com/w/dxp/development/importing-exporting-data/site-initializers)
+  - [Using a Site Initializer Client Extension](https://learn.liferay.com/w/dxp/development/importing-exporting-data/using-a-site-initializer-client-extension)
+  - [Batch YAML Configuration Reference](https://learn.liferay.com/w/dxp/development/importing-exporting-data/batch-yaml-configuration-reference)
+- **Traditional Java-Based Development** — https://learn.liferay.com/w/dxp/development/traditional-java-based-development
+  - [Fundamentals](https://learn.liferay.com/w/dxp/development/traditional-java-based-development/fundamentals)
+  - [Developing a Web Application](https://learn.liferay.com/w/dxp/development/traditional-java-based-development/developing-a-web-application)
+  - [Core Frameworks](https://learn.liferay.com/w/dxp/development/traditional-java-based-development/core-frameworks)
+  - [Data Frameworks](https://learn.liferay.com/w/dxp/development/traditional-java-based-development/data-frameworks)
+  - [Extending Liferay](https://learn.liferay.com/w/dxp/development/traditional-java-based-development/extending-liferay)
+- **Developing Page Fragments** — https://learn.liferay.com/w/dxp/development/developing-page-fragments
+  - [Using the Fragments Editor](https://learn.liferay.com/w/dxp/development/developing-page-fragments/using-the-fragments-editor)
+  - [Using the Fragments Toolkit](https://learn.liferay.com/w/dxp/development/developing-page-fragments/using-the-fragments-toolkit)
+  - [Adding Configuration Options to Fragments](https://learn.liferay.com/w/dxp/development/developing-page-fragments/adding-configuration-options-to-fragments)
+  - [Best Practices for Using Fragment Configurations](https://learn.liferay.com/w/dxp/development/developing-page-fragments/best-practices-for-using-fragment-configurations)
+  - [Defining Fragment Drop Zones](https://learn.liferay.com/w/dxp/development/developing-page-fragments/defining-fragment-drop-zones)
+  - [Using Custom Fields in Page Fragments](https://learn.liferay.com/w/dxp/development/developing-page-fragments/using-custom-fields-in-page-fragments)
+  - [Applying Styles to Fragments](https://learn.liferay.com/w/dxp/development/developing-page-fragments/applying-styles-to-fragments)
+  - [Creating a Contributed Fragment Set](https://learn.liferay.com/w/dxp/development/developing-page-fragments/creating-a-contributed-fragment-set)
+  - [Validating Fragment Configurations](https://learn.liferay.com/w/dxp/development/developing-page-fragments/validating-fragment-configurations)
+  - [Auto-Deploying Fragments](https://learn.liferay.com/w/dxp/development/developing-page-fragments/auto-deploying-fragments)
+  - [Including Default Resources in Fragments](https://learn.liferay.com/w/dxp/development/developing-page-fragments/including-default-resources-with-fragments)
+  - [Setting the Order of Elements in a Fragment](https://learn.liferay.com/w/dxp/development/developing-page-fragments/setting-the-order-of-elements-in-a-fragment)
+  - [Creating Form Fragments](https://learn.liferay.com/w/dxp/sites/creating-pages/page-fragments-and-widgets/using-fragments/using-form-fragments/creating-form-fragments)
+  - [Developing Page Fragments Reference](https://learn.liferay.com/w/dxp/development/developing-page-fragments/reference)
+- **Tooling** — https://learn.liferay.com/w/dxp/development/tooling
+  - [Liferay Workspace](https://learn.liferay.com/w/dxp/development/tooling/liferay-workspace)
+  - [Blade CLI](https://learn.liferay.com/w/dxp/development/tooling/blade-cli)
+  - [Liferay Developer Studio](https://learn.liferay.com/w/dxp/development/tooling/liferay-developer-studio)
+  - [Other Tools (Deprecated)](https://learn.liferay.com/w/dxp/development/tooling/other-tools)
+  - [Reference](https://learn.liferay.com/w/dxp/development/tooling/reference)
+- **Marketplace** — https://learn.liferay.com/w/dxp/development/marketplace
+  - [Become a Publisher](https://learn.liferay.com/w/dxp/development/marketplace/become-a-publisher)
+  - [Acquiring DXP Apps](https://learn.liferay.com/w/dxp/development/marketplace/acquiring-dxp-apps)
+  - [Liferay Catalogs](https://learn.liferay.com/w/dxp/development/marketplace/liferay-catalogs)
+  - [Connecting Liferay DXP to Marketplace](https://learn.liferay.com/w/dxp/development/marketplace/connecting-liferay-dxp-to-marketplace)
