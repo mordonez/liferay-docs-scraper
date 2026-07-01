@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Weekly from-scratch refresh of the learn.liferay.com/w/dxp corpus, crawl4ai-only.
 
+Builds raw/{capability}/*.md in the CURRENT WORKING DIRECTORY -- run this
+from whatever project you want the corpus to live in (e.g. right next to
+where the liferay-expert skill will look for it).
+
 A single crawl4ai deep crawl handles both URL discovery and content
 extraction:
 
@@ -11,16 +15,15 @@ extraction:
     CONTENT_SELECTOR, in one visit per page. That selector (see below) is
     precise enough that no further chrome-stripping is needed -- what
     crawl4ai returns is already the final page content.
-  - Each page is classified with scripts/filter_urls.py's classify_url
-    (capability prefixes + self-hosted prune rules) and, if in scope,
-    written to raw/{capability}/{slug}.md -- unless scripts/classify_pages.py's
-    heuristic (reused here, not duplicated) says it's a pure navigation/TOC
-    page with no substantial content of its own, in which case it goes to
-    raw/_navigation/{capability}/{slug}.md instead. This keeps raw/{capability}/
-    as signal for the future Liferay-expert consultation skill, while still
+  - Each page is classified with filter_urls.py's classify_url (capability
+    prefixes + self-hosted prune rules) and, if in scope, written to
+    raw/{capability}/{slug}.md -- unless classify_pages.py's heuristic
+    (reused here, not duplicated) says it's a pure navigation/TOC page with
+    no substantial content of its own, in which case it goes to
+    raw/_navigation/{capability}/{slug}.md instead. This keeps
+    raw/{capability}/ as signal for the liferay-expert skill, while still
     preserving the navigation pages (not deleting them) in case they're
-    useful later (see reports/low_value_candidates.md for the analysis that
-    led to this).
+    useful later.
   - Because every run starts from zero, a page that existed last run but
     isn't found this run (removed from the site, or now out of scope/pruned)
     is a *candidate* for quarantine -- but BFS link-following can miss a page
@@ -36,17 +39,17 @@ extraction:
     possibly-broken run.
   - reports/filtered/{capability}_urls.txt, self-hosted_pruned.txt and
     summary.json are regenerated from this run's live results, so they always
-    reflect the current corpus (same format scripts/filter_urls.py produces).
+    reflect the current corpus (same format filter_urls.py produces).
+  - Once everything above is written, check_regressions.py's run_check()
+    runs automatically against the last git commit (if the current directory
+    is a git repo), so a single invocation of this tool does the full
+    run-and-verify cycle (use --skip-regression-check otherwise, e.g. before
+    the first-ever commit).
 
-Setup (crawl4ai needs Python <=3.13 and its own Playwright browsers):
-    python3.13 -m venv .venv-crawl4ai
-    source .venv-crawl4ai/bin/activate
-    pip install crawl4ai
-    crawl4ai-setup
-
-Run (from repo root, with that venv activated):
-    python3 scripts/crawl4ai_pipeline.py
-    python3 scripts/crawl4ai_pipeline.py --max-pages 200   # smaller test run
+Setup and run (see README.md for the full explanation):
+    uvx --from crawl4ai crawl4ai-setup   # one-time: installs Playwright browsers
+    uvx liferay-docs-scraper             # run from the project where raw/ should live
+    uvx liferay-docs-scraper --max-pages 200   # smaller test run
 """
 
 import argparse
@@ -60,8 +63,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from classify_pages import analyze_body, classify as classify_navigation
-from filter_urls import (
+from .check_regressions import run_check as run_regression_check
+from .classify_pages import analyze_body, classify as classify_navigation
+from .filter_urls import (
     CAPABILITIES,
     SELF_HOSTED_PRUNE_RULES,
     build_frontmatter,
@@ -73,7 +77,7 @@ from filter_urls import (
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, DomainFilter, FilterChain, URLPatternFilter
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path.cwd()
 RAW_DIR = ROOT / "raw"
 REMOVED_DIR = RAW_DIR / "_removed"
 NAVIGATION_DIR = RAW_DIR / "_navigation"
@@ -419,6 +423,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--max-depth", type=int, default=DEFAULT_MAX_DEPTH)
     parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES)
+    parser.add_argument("--skip-regression-check", action="store_true",
+                         help="Skip the post-run check_regressions.run_check() call (e.g. no git repo yet).")
     args = parser.parse_args()
 
     stats = asyncio.run(run_crawl(args.max_depth, args.max_pages))
@@ -426,7 +432,12 @@ def main() -> None:
     write_filtered_reports(stats)
     print_summary(stats, quarantine_result)
 
-    if stats.fetch_failed:
+    suspicious = False
+    if not args.skip_regression_check:
+        print("\n--- Verificación de regresiones (contra el último commit) ---")
+        suspicious = run_regression_check()
+
+    if stats.fetch_failed or suspicious:
         sys.exit(1)
 
 

@@ -9,15 +9,15 @@ last commit) for every raw/**/*.md file:
     crawl4ai falling back to the whole page (breadcrumb/nav/footer chrome
     and all) instead of raising an error.
 
-Usage:
-    python3 scripts/check_regressions.py [--ref HEAD] [--shrink-threshold 0.5] [--growth-threshold 3.0]
+Usage (run from the project directory that holds raw/):
+    uvx --from liferay-docs-scraper check-regressions [--ref HEAD] [--shrink-threshold 0.5] [--growth-threshold 3.0]
 """
 
 import argparse
 import subprocess
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path.cwd()
 
 
 def body_len(text: str) -> int:
@@ -44,22 +44,15 @@ def changed_raw_files(ref: str) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.endswith(".md")]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--ref", default="HEAD")
-    parser.add_argument("--shrink-threshold", type=float, default=0.5,
-                         help="Flag files whose body shrank below this fraction of the original.")
-    parser.add_argument("--growth-threshold", type=float, default=3.0,
-                         help="Flag files whose body grew beyond this multiple of the original.")
-    args = parser.parse_args()
-
-    changed = changed_raw_files(args.ref)
-    print(f"Archivos .md cambiados en raw/ vs {args.ref}: {len(changed)}")
+def run_check(ref: str = "HEAD", shrink_threshold: float = 0.5, growth_threshold: float = 3.0) -> bool:
+    """Print the regression report; return True iff something looked suspicious."""
+    changed = changed_raw_files(ref)
+    print(f"Archivos .md cambiados en raw/ vs {ref}: {len(changed)}")
 
     shrunk, grew = [], []
     for rel_path in changed:
         full_path = ROOT / rel_path
-        old_text = git_show(args.ref, rel_path)
+        old_text = git_show(ref, rel_path)
         if old_text is None:
             continue  # new file, nothing to compare
         if not full_path.exists():
@@ -71,24 +64,37 @@ def main() -> None:
         if old_len == 0:
             continue
         ratio = new_len / old_len
-        if ratio < args.shrink_threshold:
+        if ratio < shrink_threshold:
             shrunk.append((rel_path, old_len, new_len, ratio))
-        elif ratio > args.growth_threshold:
+        elif ratio > growth_threshold:
             grew.append((rel_path, old_len, new_len, ratio))
 
     if shrunk:
         print(f"\nSOSPECHOSOS ({len(shrunk)}) -- perdieron más del "
-              f"{(1 - args.shrink_threshold) * 100:.0f}% del contenido:")
+              f"{(1 - shrink_threshold) * 100:.0f}% del contenido:")
         for rel_path, old_len, new_len, ratio in sorted(shrunk, key=lambda x: x[3]):
             print(f"  {rel_path}: {old_len} -> {new_len} chars ({ratio:.0%})")
     else:
         print("\nNinguno por debajo del umbral de encogimiento -- sin señales de pérdida de contenido.")
 
     if grew:
-        print(f"\nSOSPECHOSOS ({len(grew)}) -- crecieron más de {args.growth_threshold:.0f}x "
+        print(f"\nSOSPECHOSOS ({len(grew)}) -- crecieron más de {growth_threshold:.0f}x "
               f"(posible fallback a la página completa sin selector):")
         for rel_path, old_len, new_len, ratio in sorted(grew, key=lambda x: -x[3]):
             print(f"  {rel_path}: {old_len} -> {new_len} chars ({ratio:.1f}x)")
+
+    return bool(shrunk or grew)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--ref", default="HEAD")
+    parser.add_argument("--shrink-threshold", type=float, default=0.5,
+                         help="Flag files whose body shrank below this fraction of the original.")
+    parser.add_argument("--growth-threshold", type=float, default=3.0,
+                         help="Flag files whose body grew beyond this multiple of the original.")
+    args = parser.parse_args()
+    run_check(args.ref, args.shrink_threshold, args.growth_threshold)
 
 
 if __name__ == "__main__":

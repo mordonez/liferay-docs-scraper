@@ -1,0 +1,58 @@
+# liferay-docs-scraper
+
+Scrapes `learn.liferay.com/w/dxp/*` into a local, clean Markdown corpus
+(`raw/{capability}/*.md`) and ships a Claude Code skill (`liferay-expert`)
+that answers Liferay DXP questions by searching and citing that corpus.
+
+**This repo does not ship Liferay's documentation.** It ships the code that
+scrapes it, and a skill that reads whatever you scrape locally. Each user
+builds and refreshes their own copy directly from learn.liferay.com.
+
+## 1. Build the corpus
+
+Requires Python 3.10-3.13 (crawl4ai's Playwright dependency doesn't yet
+support 3.14) and [uv](https://docs.astral.sh/uv/).
+
+```bash
+# One-time: installs the Playwright/Chromium browser crawl4ai drives
+uvx --from crawl4ai crawl4ai-setup
+
+# From whatever project directory you want raw/ to live in:
+uvx --python 3.13 --from liferay-docs-scraper liferay-docs-scraper
+```
+
+This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14
+capabilities) and writes:
+
+- `raw/{capability}/*.md` — the corpus, one file per page
+- `raw/_navigation/{capability}/*.md` — pure TOC pages, kept but deprioritized
+- `raw/_removed/{capability}/*.md` — pages confirmed gone from the live site
+- `reports/filtered/` — URL manifests, self-hosted prune log, run summary
+
+Re-run it anytime (weekly recommended) to refresh: it starts from zero every
+time, so it naturally picks up new pages, updates changed ones, and
+quarantines (never deletes) removed ones. If the directory is a git repo,
+it also runs `check-regressions` automatically afterward and flags any file
+that shrank by more than half or grew more than 3x versus the last commit
+(signals of a broken fetch) -- see `docs/adr/0001-crawl4ai-based-corpus-pipeline.md`
+for why that check exists.
+
+## 2. Install the skill
+
+```bash
+npx skills add https://github.com/<you>/liferay-docs-scraper/tree/main/skills/liferay-expert
+```
+
+Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-expert/`
+in whatever project has your `raw/` corpus. Claude Code picks it up
+automatically and will search + cite `raw/` when you ask Liferay DXP
+questions.
+
+## Why no bundled docs, no embeddings, no vector DB
+
+See `docs/adr/` for the full reasoning. Short version: the corpus is
+Liferay's copyrighted documentation text -- distributing the *tool* that
+scrapes public pages is a different, much lower-risk thing than a third
+party redistributing that text at scale. Plain grep + Read over ~1800
+well-organized Markdown files is fast enough that no search index is needed;
+add one later if that stops being true.

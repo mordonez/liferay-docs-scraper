@@ -1,3 +1,7 @@
 .venv-crawl4ai/
 .DS_Store
 __pycache__/
+raw/
+reports/filtered/
+dist/
+*.egg-info/
