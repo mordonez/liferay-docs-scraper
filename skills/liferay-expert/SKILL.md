@@ -1,6 +1,6 @@
 ---
 name: liferay-expert
-description: Answer Liferay DXP technical questions by searching and reading the local scraped documentation corpus (~1777 pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
+description: Answer Liferay DXP technical questions by searching and reading a locally scraped documentation corpus (hundreds of pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
 ---
 
 # Liferay Expert
