@@ -17,12 +17,17 @@ with a single crawl4ai deep crawl:
     scripts/poc_crawl4ai.py, then written to raw/{capability}/{slug}.md.
   - Because every run starts from zero, a page that existed last run but
     isn't found this run (removed from the site, or now out of scope/pruned)
-    is *quarantined*: its file moves to raw/_removed/{capability}/{slug}.md
-    instead of being deleted, and the move is logged to
-    reports/filtered/removed_log.jsonl. If a capability's discovered count
-    drops implausibly (crawl likely failed partway), quarantine for that
-    capability is skipped and flagged for manual review instead of trusting
-    a possibly-broken run.
+    is a *candidate* for quarantine -- but BFS link-following can miss a page
+    that's still live (no longer linked from anywhere our crawl reached,
+    while still resolving directly), so before quarantining anything we do a
+    direct HTTP check on each candidate's own URL. Only a confirmed non-200
+    gets quarantined (moved to raw/_removed/{capability}/{slug}.md, logged to
+    reports/filtered/removed_log.jsonl); anything that still responds, or
+    that we simply couldn't reach to check, is left in place and flagged for
+    manual review instead. If a capability's discovered count drops
+    implausibly (crawl likely failed partway), quarantine for that capability
+    is skipped entirely and flagged for manual review instead of trusting a
+    possibly-broken run.
   - reports/filtered/{capability}_urls.txt, self-hosted_pruned.txt and
     summary.json are regenerated from this run's live results, so they always
     reflect the current corpus (same format scripts/filter_urls.py produces).
@@ -38,6 +43,8 @@ import asyncio
 import json
 import shutil
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,6 +70,12 @@ REMOVED_LOG = FILTERED_DIR / "removed_log.jsonl"
 SEED_URL = "https://learn.liferay.com/w/dxp/index"
 ALLOWED_DOMAIN = "learn.liferay.com"
 URL_SCOPE_PATTERN = "*/w/dxp*"
+# Downloadable attachments linked FROM doc pages (sample zips, JS snippets,
+# icons) aren't doc pages themselves -- don't let BFS follow/crawl them.
+EXCLUDED_ASSET_PATTERNS = [
+    "*.zip", "*.js", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg",
+    "*.pdf", "*.css", "*.ico", "*.woff", "*.woff2",
+]
 
 DEFAULT_MAX_DEPTH = 12
 DEFAULT_MAX_PAGES = 3000
@@ -70,6 +83,14 @@ DEFAULT_MAX_PAGES = 3000
 # its previous count, treat the run as suspect and skip quarantining orphans
 # for that capability rather than mass-deleting good content on a bad crawl.
 QUARANTINE_SAFETY_RATIO = 0.5
+
+# Some fetches render a client-side error banner instead of the real page
+# (transient rendering/server hiccup) -- crawl4ai still reports these as a
+# "successful" fetch, so we have to catch it ourselves and retry.
+ERROR_MARKERS = ["An unexpected error occurred."]
+MIN_ACCEPTABLE_BODY_LENGTH = 30
+CONTENT_RETRY_ATTEMPTS = 3
+CONTENT_RETRY_DELAY_SECONDS = 3.0
 
 
 @dataclass
@@ -111,10 +132,19 @@ def read_existing_hash(path: Path) -> str | None:
     return None
 
 
+def is_broken_content(markdown: str) -> bool:
+    """Detect a client-side error banner or a suspiciously empty fetch."""
+    stripped = markdown.strip()
+    if len(stripped) < MIN_ACCEPTABLE_BODY_LENGTH:
+        return True
+    return any(marker in stripped for marker in ERROR_MARKERS)
+
+
 def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
     filter_chain = FilterChain([
         DomainFilter(allowed_domains=[ALLOWED_DOMAIN]),
         URLPatternFilter(patterns=[URL_SCOPE_PATTERN]),
+        URLPatternFilter(patterns=EXCLUDED_ASSET_PATTERNS, reverse=True),
     ])
     strategy = BFSDeepCrawlStrategy(
         max_depth=max_depth, filter_chain=filter_chain, max_pages=max_pages, include_external=False,
@@ -126,6 +156,19 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
         stream=True,
         verbose=False,
     )
+
+
+async def refetch_single_page(crawler: AsyncWebCrawler, url: str) -> str | None:
+    """Re-fetch one URL outside the deep crawl (used when the deep crawl's
+    copy looked broken). Returns raw #main-content markdown, or None if every
+    attempt still looks broken."""
+    single_config = CrawlerRunConfig(css_selector="#main-content", cache_mode=CacheMode.BYPASS)
+    for attempt in range(1, CONTENT_RETRY_ATTEMPTS):
+        await asyncio.sleep(CONTENT_RETRY_DELAY_SECONDS * attempt)
+        result = await crawler.arun(url=url, config=single_config)
+        if result.success and not is_broken_content(result.markdown.raw_markdown):
+            return result.markdown.raw_markdown
+    return None
 
 
 async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
@@ -161,6 +204,14 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
             out_path = out_dir / f"{slug}.md"
 
             markdown = result.markdown.raw_markdown
+            if is_broken_content(markdown):
+                markdown = await refetch_single_page(crawler, url)
+                if markdown is None:
+                    # Never overwrite a good existing file with a broken
+                    # fetch -- leave it as-is and flag for a manual retry.
+                    stats.fetch_failed.append(url)
+                    continue
+
             try:
                 markdown = clean_main_content(markdown)
             except NotCleanable:
@@ -187,11 +238,38 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
     return stats
 
 
+def read_url_from_file(path: Path) -> str | None:
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("url:"):
+                return line.strip().removeprefix("url:").strip().strip('"')
+    return None
+
+
+def is_confirmed_gone(url: str, timeout: float = 10.0) -> bool:
+    """True only if the URL itself, fetched directly (no BFS involved),
+    confirms it's actually gone (404/410). Any other outcome -- 200, a
+    different error, a timeout, a network hiccup on our end -- is NOT treated
+    as confirmation, since BFS link-following can miss pages that are still
+    live but just unlinked from wherever our crawl reached this run."""
+    request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return False  # any successful response means it's still there
+    except urllib.error.HTTPError as exc:
+        return exc.code in (404, 410)
+    except Exception:  # noqa: BLE001 - network errors on our side aren't proof of anything
+        return False
+
+
 def quarantine_orphans(stats: RunStats) -> dict:
     """Move raw/{capability}/*.md files that this run didn't touch to
-    raw/_removed/{capability}/, unless the capability's count dropped so
-    much it looks like a broken run rather than real removals."""
+    raw/_removed/{capability}/ -- but only after directly confirming the
+    URL is actually gone (see is_confirmed_gone). Orphans that turn out to
+    still be live, or that we couldn't check, are left in place and reported
+    separately so a human can look into the crawl's coverage gap."""
     quarantined: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
+    still_alive: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
     skipped_capabilities: list[str] = []
 
     for capability in CAPABILITIES:
@@ -217,15 +295,20 @@ def quarantine_orphans(stats: RunStats) -> dict:
         removed_dir = REMOVED_DIR / capability
         removed_dir.mkdir(parents=True, exist_ok=True)
         removed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        with REMOVED_LOG.open("a", encoding="utf-8") as log:
-            for slug in sorted(orphans):
-                src = out_dir / f"{slug}.md"
-                dst = removed_dir / f"{slug}.md"
-                shutil.move(str(src), str(dst))
-                quarantined[capability].append(slug)
-                log.write(json.dumps({"capability": capability, "slug": slug, "removed_at": removed_at}) + "\n")
+        for slug in sorted(orphans):
+            src = out_dir / f"{slug}.md"
+            url = read_url_from_file(src)
+            if url is None or not is_confirmed_gone(url):
+                still_alive[capability].append(slug)
+                continue
 
-    return {"quarantined": quarantined, "skipped_capabilities": skipped_capabilities}
+            dst = removed_dir / f"{slug}.md"
+            shutil.move(str(src), str(dst))
+            quarantined[capability].append(slug)
+            with REMOVED_LOG.open("a", encoding="utf-8") as log:
+                log.write(json.dumps({"capability": capability, "slug": slug, "url": url, "removed_at": removed_at}) + "\n")
+
+    return {"quarantined": quarantined, "still_alive": still_alive, "skipped_capabilities": skipped_capabilities}
 
 
 def write_filtered_reports(stats: RunStats) -> None:
@@ -280,12 +363,22 @@ def print_summary(stats: RunStats, quarantine_result: dict) -> None:
 
     quarantined = quarantine_result["quarantined"]
     total_quarantined = sum(len(v) for v in quarantined.values())
-    print(f"\nEn cuarentena (ya no existen/no encajan en scope): {total_quarantined}")
+    print(f"\nEn cuarentena (URL verificada como caída, HTTP 404/410): {total_quarantined}")
     for capability, slugs in quarantined.items():
         if slugs:
             print(f"  {capability}: {len(slugs)}")
             for slug in slugs:
                 print(f"    - {slug}")
+
+    still_alive = quarantine_result["still_alive"]
+    total_still_alive = sum(len(v) for v in still_alive.values())
+    if total_still_alive:
+        print(f"\nNo redescubiertas por el BFS pero SIGUEN VIVAS (no se tocaron, revisar cobertura del crawl): {total_still_alive}")
+        for capability, slugs in still_alive.items():
+            if slugs:
+                print(f"  {capability}: {len(slugs)}")
+                for slug in slugs:
+                    print(f"    - {slug}")
 
     if quarantine_result["skipped_capabilities"]:
         print("\nADVERTENCIA: cuarentena omitida por caída sospechosa de conteo "
