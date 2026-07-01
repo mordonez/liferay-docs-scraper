@@ -10,9 +10,20 @@ builds and refreshes their own copy directly from learn.liferay.com.
 
 ## Quickstart
 
-This is the actual first-run experience, in order.
+The recommended order for a first-time setup: scrape, then install the
+skill, then ask questions.
 
-**1. Install the skill into whatever project you're working in:**
+**1. Build the corpus (one-time, ~30-40 min):**
+
+```bash
+uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
+uvx liferay-docs-scraper             # scrapes learn.liferay.com into a shared local corpus
+```
+
+Run this from anywhere -- it does not write into your current directory,
+see "Reference: the scraper in detail" below for exactly where it goes.
+
+**2. Install the skill into whatever project you're working in:**
 
 ```bash
 npx skills add <owner>/liferay-docs-scraper --skill liferay-expert -a claude-code
@@ -31,30 +42,22 @@ useful for testing before you publish anywhere.) You'll see:
 ├───────────────────────────────────────╯
 ```
 
-**2. Ask Claude Code a Liferay question**, e.g. "how do I configure a
-synonym set in Liferay search?"
-
-**3. First time, there's no corpus yet.** The skill checks for one (see
-"Step 1/2" in `skills/liferay-expert/SKILL.md`), doesn't find it, and tells
-you to run:
-
-```bash
-uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
-uvx liferay-docs-scraper             # ~30-40 min, scrapes learn.liferay.com
-```
-
-It won't run this for you automatically -- it's long enough that you should
-choose when to kick it off, not have it block your first question.
-
-**4. Ask again.** Now the skill finds the corpus, greps the `search`
-capability, reads `search-administration-and-tuning-synonym-sets.md`, and
-answers grounded in that page -- citing
+**3. Ask Claude Code a Liferay question**, e.g. "how do I configure a
+synonym set in Liferay search?" The skill finds the corpus, greps the
+`search` capability, reads `search-administration-and-tuning-synonym-sets.md`,
+and answers grounded in that page -- citing
 `https://learn.liferay.com/w/dxp/search/search-administration-and-tuning/synonym-sets`
 as the source.
 
-From here on, the corpus is shared across every project where you've
-installed the skill (see "OS default location" below) -- you only run the
-scraper once, not per-project, and only again when you want to refresh it.
+The corpus is shared across every project where you install the skill (see
+"OS default location" below), so step 1 is only ever needed once per
+machine -- rerun it later just to refresh, not per-project.
+
+**If you install the skill without doing step 1 first** (or its corpus goes
+stale), it notices and tells you what to run rather than guessing or
+answering ungrounded -- it never launches the ~30-40 min scrape on its own
+mid-conversation. See "Step 1/2" in `skills/liferay-expert/SKILL.md` for
+that check.
 
 ## Reference: the scraper in detail
 
