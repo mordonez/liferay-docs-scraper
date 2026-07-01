@@ -7,12 +7,13 @@ extraction:
   - A BFS deep crawl starts at /w/dxp/index and follows every internal link
     under /w/dxp/*. crawl4ai extracts links from the FULL page regardless of
     css_selector, so this single crawl gets us both (a) the complete current
-    set of URLs on the site and (b) each page's clean #main-content Markdown,
-    in one visit per page.
+    set of URLs on the site and (b) each page's Markdown scoped to
+    CONTENT_SELECTOR, in one visit per page. That selector (see below) is
+    precise enough that no further chrome-stripping is needed -- what
+    crawl4ai returns is already the final page content.
   - Each page is classified with scripts/filter_urls.py's classify_url
     (capability prefixes + self-hosted prune rules) and, if in scope,
-    cleaned with the header-cut logic below, then written to
-    raw/{capability}/{slug}.md.
+    written to raw/{capability}/{slug}.md.
   - Because every run starts from zero, a page that existed last run but
     isn't found this run (removed from the site, or now out of scope/pruned)
     is a *candidate* for quarantine -- but BFS link-following can miss a page
@@ -44,7 +45,6 @@ Run (from repo root, with that venv activated):
 import argparse
 import asyncio
 import json
-import re
 import shutil
 import sys
 import urllib.error
@@ -74,6 +74,12 @@ REMOVED_LOG = FILTERED_DIR / "removed_log.jsonl"
 SEED_URL = "https://learn.liferay.com/w/dxp/index"
 ALLOWED_DOMAIN = "learn.liferay.com"
 URL_SCOPE_PATTERN = "*/w/dxp*"
+# learn.liferay.com's article template puts the breadcrumb, sidebar TOC, and
+# the actual article body all inside #main-content, with the maintenance
+# banner and global footer outside it. .learn-article-content is scoped
+# tighter still: just the title, body, and resource-type tags -- no
+# breadcrumb/TOC/"Submit Feedback" chrome to strip afterward.
+CONTENT_SELECTOR = ".learn-article-content"
 # Downloadable attachments linked FROM doc pages (sample zips, JS snippets,
 # icons) aren't doc pages themselves -- don't let BFS follow/crawl them.
 EXCLUDED_ASSET_PATTERNS = [
@@ -102,7 +108,7 @@ class PageOutcome:
     url: str
     capability: str
     slug: str
-    status: str  # "new" | "updated" | "unchanged" | "not_cleaned"
+    status: str  # "new" | "updated" | "unchanged"
 
 
 @dataclass
@@ -112,38 +118,6 @@ class RunStats:
     unmatched: list[str] = field(default_factory=list)
     pruned: list[tuple] = field(default_factory=list)
     outcomes: dict = field(default_factory=lambda: {name: [] for name in CAPABILITIES})
-
-
-class NotCleanable(Exception):
-    """Raised when a page doesn't match the expected article template, so
-    it's safer to save it un-trimmed than to risk cutting real content."""
-    def __init__(self, reason: str):
-        super().__init__(reason)
-        self.reason = reason
-
-
-# The real title heading always looks like "# [Title](url#anchor)"; anything
-# above it (within #main-content) is breadcrumb/TOC chrome to cut.
-HEADER_H1_RE = re.compile(r"^# \[.*\]\([^)]*\)\s*\\?\s*$")
-
-
-def find_header_cut(lines: list[str]) -> int:
-    for i, line in enumerate(lines):
-        if HEADER_H1_RE.match(line):
-            return i
-    raise NotCleanable("no H1 heading anchor found (unexpected page template)")
-
-
-def clean_main_content(markdown: str) -> str:
-    """Header-only chrome cut (breadcrumb/TOC before the real H1). No footer
-    cut needed: css_selector="#main-content" already excludes the site
-    footer and global nav."""
-    lines = markdown.split("\n")
-    header_cut = find_header_cut(lines)
-    cleaned_lines = lines[header_cut:]
-    while cleaned_lines and cleaned_lines[-1].strip() == "":
-        cleaned_lines.pop()
-    return "\n".join(cleaned_lines) + "\n"
 
 
 def read_existing_hash(path: Path) -> str | None:
@@ -175,7 +149,7 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
     )
     return CrawlerRunConfig(
         deep_crawl_strategy=strategy,
-        css_selector="#main-content",
+        css_selector=CONTENT_SELECTOR,
         cache_mode=CacheMode.BYPASS,
         stream=True,
         verbose=False,
@@ -184,9 +158,9 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
 
 async def refetch_single_page(crawler: AsyncWebCrawler, url: str) -> str | None:
     """Re-fetch one URL outside the deep crawl (used when the deep crawl's
-    copy looked broken). Returns raw #main-content markdown, or None if every
+    copy looked broken). Returns the page's Markdown, or None if every
     attempt still looks broken."""
-    single_config = CrawlerRunConfig(css_selector="#main-content", cache_mode=CacheMode.BYPASS)
+    single_config = CrawlerRunConfig(css_selector=CONTENT_SELECTOR, cache_mode=CacheMode.BYPASS)
     for attempt in range(1, CONTENT_RETRY_ATTEMPTS):
         await asyncio.sleep(CONTENT_RETRY_DELAY_SECONDS * attempt)
         result = await crawler.arun(url=url, config=single_config)
@@ -235,15 +209,6 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
                     # fetch -- leave it as-is and flag for a manual retry.
                     stats.fetch_failed.append(url)
                     continue
-
-            try:
-                markdown = clean_main_content(markdown)
-            except NotCleanable:
-                status = "not_cleaned"
-                content = build_frontmatter(url, capability, markdown) + markdown
-                out_path.write_text(content, encoding="utf-8")
-                stats.outcomes[capability].append(PageOutcome(url, capability, slug, status))
-                continue
 
             new_content = build_frontmatter(url, capability, markdown) + markdown
             old_hash_line = read_existing_hash(out_path)
@@ -301,8 +266,7 @@ def quarantine_orphans(stats: RunStats) -> dict:
         if not out_dir.exists():
             continue
 
-        # A "not_cleaned" page still got its file (re)written this run, so it
-        # counts as present -- only files untouched this run are orphans.
+        # Only files untouched by this run's outcomes are orphans.
         current_slugs = {o.slug for o in stats.outcomes[capability]}
         on_disk = {p.stem for p in out_dir.glob("*.md")}
         orphans = on_disk - current_slugs
@@ -371,16 +335,15 @@ def print_summary(stats: RunStats, quarantine_result: dict) -> None:
         for url in stats.fetch_failed:
             print(f"  - {url}")
 
-    print("\nPor capability (nuevas / actualizadas / sin cambios / no limpiadas):")
+    print("\nPor capability (nuevas / actualizadas / sin cambios):")
     total_in_scope = 0
     for capability, outcomes in stats.outcomes.items():
         new = sum(1 for o in outcomes if o.status == "new")
         updated = sum(1 for o in outcomes if o.status == "updated")
         unchanged = sum(1 for o in outcomes if o.status == "unchanged")
-        not_cleaned = sum(1 for o in outcomes if o.status == "not_cleaned")
         total_in_scope += len(outcomes)
         print(f"  {capability:12s}: {len(outcomes):4d} total  "
-              f"({new} nuevas, {updated} actualizadas, {unchanged} sin cambios, {not_cleaned} no limpiadas)")
+              f"({new} nuevas, {updated} actualizadas, {unchanged} sin cambios)")
     print(f"\nTotal en scope: {total_in_scope}")
 
     print(f"\nSelf-hosted podadas: {len(stats.pruned)}")

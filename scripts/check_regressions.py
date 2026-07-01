@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Flag suspicious content loss in raw/ after a crawl4ai refresh, using git.
+"""Flag suspicious content changes in raw/ after a crawl4ai refresh, using git.
 
 Compares the working tree against a given git ref (default: HEAD, i.e. the
-last commit) for every raw/**/*.md file: files that shrank a lot (body text,
-not counting frontmatter) are flagged for manual review, since that's the
-signature of a broken/partial extraction overwriting a good one -- as
-opposed to the expected cosmetic size drift between Firecrawl's and
-crawl4ai's Markdown conversion (a few percent either way).
+last commit) for every raw/**/*.md file:
+  - Shrank a lot (body text, not counting frontmatter): the signature of a
+    broken/partial fetch overwriting a good page.
+  - Grew a lot: the signature of CONTENT_SELECTOR failing to match and
+    crawl4ai falling back to the whole page (breadcrumb/nav/footer chrome
+    and all) instead of raising an error.
 
 Usage:
-    python3 scripts/check_regressions.py [--ref HEAD] [--shrink-threshold 0.5]
+    python3 scripts/check_regressions.py [--ref HEAD] [--shrink-threshold 0.5] [--growth-threshold 3.0]
 """
 
 import argparse
@@ -48,12 +49,14 @@ def main() -> None:
     parser.add_argument("--ref", default="HEAD")
     parser.add_argument("--shrink-threshold", type=float, default=0.5,
                          help="Flag files whose body shrank below this fraction of the original.")
+    parser.add_argument("--growth-threshold", type=float, default=3.0,
+                         help="Flag files whose body grew beyond this multiple of the original.")
     args = parser.parse_args()
 
     changed = changed_raw_files(args.ref)
     print(f"Archivos .md cambiados en raw/ vs {args.ref}: {len(changed)}")
 
-    suspicious = []
+    shrunk, grew = [], []
     for rel_path in changed:
         full_path = ROOT / rel_path
         old_text = git_show(args.ref, rel_path)
@@ -69,15 +72,23 @@ def main() -> None:
             continue
         ratio = new_len / old_len
         if ratio < args.shrink_threshold:
-            suspicious.append((rel_path, old_len, new_len, ratio))
+            shrunk.append((rel_path, old_len, new_len, ratio))
+        elif ratio > args.growth_threshold:
+            grew.append((rel_path, old_len, new_len, ratio))
 
-    if suspicious:
-        print(f"\nSOSPECHOSOS ({len(suspicious)}) -- perdieron más del "
+    if shrunk:
+        print(f"\nSOSPECHOSOS ({len(shrunk)}) -- perdieron más del "
               f"{(1 - args.shrink_threshold) * 100:.0f}% del contenido:")
-        for rel_path, old_len, new_len, ratio in sorted(suspicious, key=lambda x: x[3]):
+        for rel_path, old_len, new_len, ratio in sorted(shrunk, key=lambda x: x[3]):
             print(f"  {rel_path}: {old_len} -> {new_len} chars ({ratio:.0%})")
     else:
         print("\nNinguno por debajo del umbral de encogimiento -- sin señales de pérdida de contenido.")
+
+    if grew:
+        print(f"\nSOSPECHOSOS ({len(grew)}) -- crecieron más de {args.growth_threshold:.0f}x "
+              f"(posible fallback a la página completa sin selector):")
+        for rel_path, old_len, new_len, ratio in sorted(grew, key=lambda x: -x[3]):
+            print(f"  {rel_path}: {old_len} -> {new_len} chars ({ratio:.1f}x)")
 
 
 if __name__ == "__main__":
