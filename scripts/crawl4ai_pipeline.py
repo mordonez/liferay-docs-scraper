@@ -144,6 +144,7 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
     return CrawlerRunConfig(
         deep_crawl_strategy=strategy,
         css_selector=CONTENT_SELECTOR,
+        wait_for=f"css:{CONTENT_SELECTOR}",
         cache_mode=CacheMode.BYPASS,
         stream=True,
         verbose=False,
@@ -154,7 +155,9 @@ async def refetch_single_page(crawler: AsyncWebCrawler, url: str) -> str | None:
     """Re-fetch one URL outside the deep crawl (used when the deep crawl's
     copy looked broken). Returns the page's Markdown, or None if every
     attempt still looks broken."""
-    single_config = CrawlerRunConfig(css_selector=CONTENT_SELECTOR, cache_mode=CacheMode.BYPASS)
+    single_config = CrawlerRunConfig(
+        css_selector=CONTENT_SELECTOR, wait_for=f"css:{CONTENT_SELECTOR}", cache_mode=CacheMode.BYPASS,
+    )
     for attempt in range(1, CONTENT_RETRY_ATTEMPTS):
         await asyncio.sleep(CONTENT_RETRY_DELAY_SECONDS * attempt)
         result = await crawler.arun(url=url, config=single_config)
