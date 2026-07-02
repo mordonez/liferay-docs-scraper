@@ -104,7 +104,7 @@ uvx liferay-docs-scraper
 ```
 
 This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14
-capabilities) and writes to **`~/liferay-docs`** — one shared location, the
+capabilities) and writes to **`~/.liferay-docs`** — one shared location, the
 same on macOS, Linux, and Windows, so it's the same docs no matter which
 project you're in when the skill looks for it. Set `LIFERAY_DOCS_DIR` to
 override (e.g. to keep a project-local copy instead).

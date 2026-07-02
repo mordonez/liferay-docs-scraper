@@ -127,13 +127,15 @@ def build_frontmatter(url: str, capability: str, markdown: str) -> str:
 
 def resolve_docs_dir() -> Path:
     """Where the local docs (raw/, reports/filtered/) live: $LIFERAY_DOCS_DIR
-    if set, otherwise ~/liferay-docs. The same folder regardless of which
+    if set, otherwise ~/.liferay-docs. The same folder regardless of which
     OS you're on or which project you're running the scraper or the skill
     from -- deliberately not a platform-specific app-data convention (e.g.
     macOS's Application Support, Windows' LOCALAPPDATA), since that adds
-    complexity a single-purpose personal cache doesn't need. Plain and
-    predictable beats "technically idiomatic" here."""
+    complexity a single-purpose tool cache doesn't need. The dot-prefix
+    (not a bare ~/liferay-docs) matches the usual convention for
+    tool-managed data dirs (~/.cache, ~/.npm, ~/.cargo, ...) so it doesn't
+    clutter a plain `ls ~`, while staying one simple, uniform path."""
     override = os.environ.get("LIFERAY_DOCS_DIR")
     if override:
         return Path(override).expanduser()
-    return Path.home() / "liferay-docs"
+    return Path.home() / ".liferay-docs"

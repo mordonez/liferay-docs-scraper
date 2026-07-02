@@ -15,7 +15,9 @@ currently in (so it isn't duplicated per-project). Resolve it once per
 conversation:
 
 - If `$LIFERAY_DOCS_DIR` is set, use that.
-- Otherwise use the default: `~/liferay-docs` (same on macOS, Linux, and Windows).
+- Otherwise use the default: `~/.liferay-docs` (same name on macOS, Linux, and
+  Windows -- the leading dot only actually hides it from a plain listing on
+  macOS/Linux; on Windows it's just part of the folder name).
 
 Call this `$DOCS_DIR` below. It should contain a `raw/` subfolder.
 

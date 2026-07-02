@@ -2,7 +2,7 @@
 """Weekly from-scratch refresh of the learn.liferay.com/w/dxp docs, crawl4ai-only.
 
 Builds raw/{capability}/*.md under filter_urls.resolve_docs_dir(): the
-$LIFERAY_DOCS_DIR directory if that env var is set, otherwise ~/liferay-docs
+$LIFERAY_DOCS_DIR directory if that env var is set, otherwise ~/.liferay-docs
 (same on every OS). Deliberately NOT the current working directory -- the
 liferay-expert skill looks in that same shared location regardless of
 which project you're in when you ask a question, so you don't end up with
