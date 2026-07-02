@@ -57,8 +57,10 @@ Setup and run (see README.md for the full explanation):
 import argparse
 import asyncio
 import json
+import logging
 import shutil
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -78,6 +80,15 @@ from .filter_urls import (
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, DomainFilter, FilterChain, URLPatternFilter
+
+# crawl4ai's BFS strategy logs a WARNING (via the stdlib logging module, so
+# it ignores our own verbose=False) for every discovered link that isn't a
+# well-formed absolute http(s) URL -- e.g. a bare "localhost:8080/..."
+# example URL mentioned in a doc's text, not something we'd want to follow
+# anyway. It's correctly excluded either way; only the noise is the
+# problem, so raise just this one logger's level rather than dropping it
+# entirely (other crawl4ai warnings should still surface normally).
+logging.getLogger("crawl4ai.deep_crawling.bfs_strategy").setLevel(logging.ERROR)
 
 ROOT = resolve_docs_dir()
 RAW_DIR = ROOT / "raw"
@@ -102,6 +113,17 @@ DEFAULT_MAX_PAGES = 3000
 # its previous count, treat the run as suspect and skip quarantining orphans
 # for that capability rather than mass-deleting good content on a bad crawl.
 QUARANTINE_SAFETY_RATIO = 0.5
+
+# Print a one-line progress update this often during the crawl -- otherwise
+# there's zero output for the full ~30-40 min run (verbose=False silences
+# crawl4ai's own per-page logging).
+PROGRESS_EVERY = 50
+# No hardcoded fallback here: BFS discovers the real total as it goes, so
+# the only honest "how much is left" estimate is this same docs dir's own
+# last run (reports/filtered/summary.json's discovered_total) -- see
+# estimate_total_pages(). Only a brand-new docs dir with no prior run has
+# no such estimate at all, in which case the progress line just omits the
+# percentage rather than guess at a number.
 
 
 @dataclass
@@ -151,13 +173,42 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
     )
 
 
+def estimate_total_pages() -> int | None:
+    """discovered_total from this docs dir's own last run, if any -- the
+    only honest basis for a "% done" estimate, since BFS doesn't know the
+    real total until the crawl finishes. None on a docs dir's first-ever
+    run (no summary.json yet)."""
+    summary_path = FILTERED_DIR / "summary.json"
+    if not summary_path.exists():
+        return None
+    try:
+        return json.loads(summary_path.read_text(encoding="utf-8")).get("discovered_total")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
     stats = RunStats()
     config = build_deep_crawl_config(max_depth, max_pages)
+    expected_total = estimate_total_pages()
+    start_time = time.monotonic()
+    seen = 0
 
     async with AsyncWebCrawler() as crawler:
         stream = await crawler.arun(url=SEED_URL, config=config)
         async for result in stream:
+            seen += 1
+            if seen % PROGRESS_EVERY == 0:
+                elapsed_min = (time.monotonic() - start_time) / 60
+                rate = seen / elapsed_min if elapsed_min > 0 else 0
+                if expected_total:
+                    pct = min(100, round(100 * seen / expected_total))
+                    progress = f"~{pct}% de la última corrida -- estimación, no exacto"
+                else:
+                    progress = "primera corrida en este docs dir, sin estimación previa"
+                print(f"  ...{seen} páginas vistas ({progress}) -- "
+                      f"{elapsed_min:.1f} min transcurridos, ~{rate:.0f} páginas/min", flush=True)
+
             url = normalize(result.url)
 
             if not result.success:
@@ -388,6 +439,9 @@ def main() -> None:
     parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES)
     args = parser.parse_args()
 
+    expected_total = estimate_total_pages()
+    size_hint = f"~{expected_total} páginas la última vez" if expected_total else "~30-40 min habitualmente"
+    print(f"Arrancando el crawl ({size_hint}) -- progreso cada {PROGRESS_EVERY} páginas...", flush=True)
     stats = asyncio.run(run_crawl(args.max_depth, args.max_pages))
     quarantine_result = quarantine_orphans(stats)
     write_filtered_reports(stats)
