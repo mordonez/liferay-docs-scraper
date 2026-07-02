@@ -103,8 +103,9 @@ than guessing one and stopping.
 - `raw/community-howto/` and `raw/community-troubleshooting/` are a separate,
   much larger (~4,800 pages) set of community-contributed recipes and
   troubleshooting articles from learn.liferay.com/kb-article/*, fetched by
-  `uvx liferay-docs-scraper-community` (a separate, multi-hour command --
-  not part of the weekly official-docs refresh, and not required for this
-  skill to work at all). Same capability folder names as the official docs,
-  plus a `_uncategorized/` bucket for articles the site itself didn't tag
-  with a capability. Lower authority than official docs -- see Step 3.
+  `uvx --from liferay-docs-scraper liferay-docs-scraper-community` (a
+  separate, multi-hour command -- not part of the weekly official-docs
+  refresh, and not required for this skill to work at all). Same
+  capability folder names as the official docs, plus a `_uncategorized/`
+  bucket for articles the site itself didn't tag with a capability. Lower
+  authority than official docs -- see Step 3.

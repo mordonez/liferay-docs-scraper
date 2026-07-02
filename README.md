@@ -137,8 +137,16 @@ for the trade-off behind that choice).
 ### Optional: community How-To and Troubleshooting articles
 
 ```bash
-uvx liferay-docs-scraper-community
+uvx --from liferay-docs-scraper liferay-docs-scraper-community
 ```
+
+`liferay-docs-scraper-community` is a second entry point in the same
+`liferay-docs-scraper` PyPI package, not a package of its own -- `uvx`
+assumes the tool name *is* the package name unless told otherwise with
+`--from`, so a bare `uvx liferay-docs-scraper-community` fails to resolve.
+(Already installed the base package? `pip install liferay-docs-scraper`
++ running `liferay-docs-scraper-community` directly also works, same
+reason.)
 
 A separate, much larger scrape (~4,800 pages vs. ~1,900) of
 learn.liferay.com's community-contributed How-To recipes and
