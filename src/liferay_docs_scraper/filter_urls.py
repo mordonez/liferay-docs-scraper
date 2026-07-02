@@ -10,7 +10,6 @@ where that raw/ docs folder actually lives on disk.
 
 import hashlib
 import os
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -126,26 +125,15 @@ def build_frontmatter(url: str, capability: str, markdown: str) -> str:
     return "\n".join(lines)
 
 
-def _default_data_dir() -> Path:
-    """Per-user app-data directory, one convention per OS, so the docs
-    live in the same predictable place regardless of which project you
-    happen to be running the scraper or the skill from."""
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-        return Path(base) / "liferay-docs"
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "liferay-docs"
-    # Linux and other Unix-likes: XDG Base Directory spec
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "liferay-docs"
-
-
 def resolve_docs_dir() -> Path:
     """Where the local docs (raw/, reports/filtered/) live: $LIFERAY_DOCS_DIR
-    if set, otherwise the OS-appropriate default data directory. The same
-    shared docs regardless of the current project, unless explicitly
-    overridden -- see _default_data_dir() for the per-OS default."""
+    if set, otherwise ~/liferay-docs. The same folder regardless of which
+    OS you're on or which project you're running the scraper or the skill
+    from -- deliberately not a platform-specific app-data convention (e.g.
+    macOS's Application Support, Windows' LOCALAPPDATA), since that adds
+    complexity a single-purpose personal cache doesn't need. Plain and
+    predictable beats "technically idiomatic" here."""
     override = os.environ.get("LIFERAY_DOCS_DIR")
     if override:
         return Path(override).expanduser()
-    return _default_data_dir()
+    return Path.home() / "liferay-docs"

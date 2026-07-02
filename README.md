@@ -104,16 +104,10 @@ uvx liferay-docs-scraper
 ```
 
 This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14
-capabilities) and writes to one shared, per-user location (so it's the same
-docs no matter which project you're in when the skill looks for it):
-
-| OS | Default location |
-|---|---|
-| macOS | `~/Library/Application Support/liferay-docs/` |
-| Linux | `~/.local/share/liferay-docs/` (or `$XDG_DATA_HOME/liferay-docs`) |
-| Windows | `%LOCALAPPDATA%\liferay-docs\` |
-
-Set `LIFERAY_DOCS_DIR` to override (e.g. to keep a project-local copy instead).
+capabilities) and writes to **`~/liferay-docs`** — one shared location, the
+same on macOS, Linux, and Windows, so it's the same docs no matter which
+project you're in when the skill looks for it. Set `LIFERAY_DOCS_DIR` to
+override (e.g. to keep a project-local copy instead).
 
 Inside that directory:
 
@@ -124,12 +118,19 @@ Inside that directory:
 
 Re-run it anytime (weekly recommended) to refresh: it starts from zero every
 time, so it naturally picks up new pages, updates changed ones, and
-quarantines (never deletes) removed ones. If that directory is (or becomes)
-a git repo -- worth doing once, purely as a local diffing tool, nothing needs
-pushing anywhere -- it also runs `check-regressions` automatically afterward
-and flags any file that shrank by more than half or grew more than 3x versus
-the last commit (signals of a broken fetch); see
-`docs/adr/0001-crawl4ai-based-corpus-pipeline.md` for why that check exists.
+quarantines (never deletes) removed ones.
+
+**Optional, for extra safety:** the scraper can occasionally fetch a page
+successfully but get the *wrong* content (e.g. a different page's text, or
+content cut off mid-render) -- rare, but it's happened. There's no way to
+catch that from a single fetch alone; it can only be caught by comparing
+against a previous known-good copy. If you `git init` the `~/liferay-docs`
+directory yourself (purely as a personal versioning tool -- nothing needs
+pushing anywhere), each run automatically diffs against the last commit
+and flags any page that shrank by more than half or grew more than 3x. Skip
+this entirely if you don't want to bother with it: without git there, this
+step silently does nothing. See
+`docs/adr/0001-crawl4ai-based-corpus-pipeline.md` for the full story.
 
 ## Reference: the skill in detail
 

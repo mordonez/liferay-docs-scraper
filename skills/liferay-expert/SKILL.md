@@ -15,9 +15,7 @@ currently in (so it isn't duplicated per-project). Resolve it once per
 conversation:
 
 - If `$LIFERAY_DOCS_DIR` is set, use that.
-- Otherwise use the OS default: `~/Library/Application Support/liferay-docs`
-  (macOS), `%LOCALAPPDATA%\liferay-docs` (Windows), `~/.local/share/liferay-docs`
-  (Linux, or `$XDG_DATA_HOME/liferay-docs` if that's set).
+- Otherwise use the default: `~/liferay-docs` (same on macOS, Linux, and Windows).
 
 Call this `$DOCS_DIR` below. It should contain a `raw/` subfolder.
 
