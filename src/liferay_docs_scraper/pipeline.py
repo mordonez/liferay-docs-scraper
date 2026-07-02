@@ -43,11 +43,10 @@ extraction:
   - reports/filtered/{capability}_urls.txt, self-hosted_pruned.txt and
     summary.json are regenerated from this run's live results, so they always
     reflect the current docs (same format filter_urls.py produces).
-  - Once everything above is written, check_regressions.py's run_check()
-    runs automatically against the last git commit, if resolve_docs_dir()
-    is itself a git repo (worth `git init`-ing once, purely as a local
-    diffing tool -- nothing needs to be pushed anywhere). Skipped otherwise,
-    or with --skip-regression-check.
+
+This tool's only job is fetching and saving -- it does not validate fetched
+content quality (see docs/adr/0002-drop-content-validation.md for why, and
+the accepted trade-off).
 
 Setup and run (see README.md for the full explanation):
     uvx --from crawl4ai crawl4ai-setup   # one-time: installs Playwright browsers
@@ -66,7 +65,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .check_regressions import run_check as run_regression_check
 from .classify_pages import analyze_body, classify as classify_navigation
 from .filter_urls import (
     CAPABILITIES,
@@ -105,14 +103,6 @@ DEFAULT_MAX_PAGES = 3000
 # for that capability rather than mass-deleting good content on a bad crawl.
 QUARANTINE_SAFETY_RATIO = 0.5
 
-# Some fetches render a client-side error banner instead of the real page
-# (transient rendering/server hiccup) -- crawl4ai still reports these as a
-# "successful" fetch, so we have to catch it ourselves and retry.
-ERROR_MARKERS = ["An unexpected error occurred."]
-MIN_ACCEPTABLE_BODY_LENGTH = 30
-CONTENT_RETRY_ATTEMPTS = 3
-CONTENT_RETRY_DELAY_SECONDS = 3.0
-
 
 @dataclass
 class PageOutcome:
@@ -142,14 +132,6 @@ def read_existing_hash(path: Path) -> str | None:
     return None
 
 
-def is_broken_content(markdown: str) -> bool:
-    """Detect a client-side error banner or a suspiciously empty fetch."""
-    stripped = markdown.strip()
-    if len(stripped) < MIN_ACCEPTABLE_BODY_LENGTH:
-        return True
-    return any(marker in stripped for marker in ERROR_MARKERS)
-
-
 def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
     filter_chain = FilterChain([
         DomainFilter(allowed_domains=[ALLOWED_DOMAIN]),
@@ -167,21 +149,6 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
         stream=True,
         verbose=False,
     )
-
-
-async def refetch_single_page(crawler: AsyncWebCrawler, url: str) -> str | None:
-    """Re-fetch one URL outside the deep crawl (used when the deep crawl's
-    copy looked broken). Returns the page's Markdown, or None if every
-    attempt still looks broken."""
-    single_config = CrawlerRunConfig(
-        css_selector=CONTENT_SELECTOR, wait_for=f"css:{CONTENT_SELECTOR}", cache_mode=CacheMode.BYPASS,
-    )
-    for attempt in range(1, CONTENT_RETRY_ATTEMPTS):
-        await asyncio.sleep(CONTENT_RETRY_DELAY_SECONDS * attempt)
-        result = await crawler.arun(url=url, config=single_config)
-        if result.success and not is_broken_content(result.markdown.raw_markdown):
-            return result.markdown.raw_markdown
-    return None
 
 
 async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
@@ -212,15 +179,7 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
 
             prefix = CAPABILITIES[capability]
             slug = slugify(url, prefix)
-
             markdown = result.markdown.raw_markdown
-            if is_broken_content(markdown):
-                markdown = await refetch_single_page(crawler, url)
-                if markdown is None:
-                    # Never overwrite a good existing file with a broken
-                    # fetch -- leave it as-is and flag for a manual retry.
-                    stats.fetch_failed.append(url)
-                    continue
 
             # Pure navigation/TOC pages (per classify_pages.py's heuristic)
             # go to raw/_navigation/ instead of raw/{capability}/, so the
@@ -427,8 +386,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--max-depth", type=int, default=DEFAULT_MAX_DEPTH)
     parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES)
-    parser.add_argument("--skip-regression-check", action="store_true",
-                         help="Skip the post-run check_regressions.run_check() call (e.g. no git repo yet).")
     args = parser.parse_args()
 
     stats = asyncio.run(run_crawl(args.max_depth, args.max_pages))
@@ -436,12 +393,7 @@ def main() -> None:
     write_filtered_reports(stats)
     print_summary(stats, quarantine_result)
 
-    suspicious = False
-    if not args.skip_regression_check:
-        print("\n--- Verificación de regresiones (contra el último commit) ---")
-        suspicious = run_regression_check()
-
-    if stats.fetch_failed or suspicious:
+    if stats.fetch_failed:
         sys.exit(1)
 
 

@@ -120,17 +120,11 @@ Re-run it anytime (weekly recommended) to refresh: it starts from zero every
 time, so it naturally picks up new pages, updates changed ones, and
 quarantines (never deletes) removed ones.
 
-**Optional, for extra safety:** the scraper can occasionally fetch a page
-successfully but get the *wrong* content (e.g. a different page's text, or
-content cut off mid-render) -- rare, but it's happened. There's no way to
-catch that from a single fetch alone; it can only be caught by comparing
-against a previous known-good copy. If you `git init` the `~/liferay-docs`
-directory yourself (purely as a personal versioning tool -- nothing needs
-pushing anywhere), each run automatically diffs against the last commit
-and flags any page that shrank by more than half or grew more than 3x. Skip
-this entirely if you don't want to bother with it: without git there, this
-step silently does nothing. See
-`docs/adr/0001-crawl4ai-based-corpus-pipeline.md` for the full story.
+This tool's only job is fetching and saving pages -- it does not validate
+that fetched content is correct (crawl4ai can occasionally report success
+on a page that came back wrong or truncated; see
+[`docs/adr/0002-drop-content-validation.md`](docs/adr/0002-drop-content-validation.md)
+for the trade-off behind that choice).
 
 ## Reference: the skill in detail
 

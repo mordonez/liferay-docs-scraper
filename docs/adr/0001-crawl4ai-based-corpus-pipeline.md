@@ -128,6 +128,11 @@ right tool for this site.
 
 ### Reliability hardening
 
+> **Superseded by [`0002-drop-content-validation.md`](0002-drop-content-validation.md):**
+> everything in this section was later removed in favor of a simpler tool
+> that doesn't validate fetched content at all. Left here as the historical
+> record of the bugs found and why this hardening existed in the first place.
+
 Two content-integrity bug classes surfaced during the first full 14-capability
 run, neither of which crawl4ai itself flags as a failure (`result.success`
 is `True` in both cases):
