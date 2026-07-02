@@ -43,8 +43,25 @@ Call this `$DOCS_DIR` below. It should contain a `raw/` subfolder.
 3. Read the matching file(s) in full with the Read tool.
 4. Answer grounded in what you read. Always cite the source: the file's
    frontmatter `url:` field.
-5. Nothing matches? Say so — try another capability or keyword before
-   giving up, don't guess at an answer.
+5. **Official docs came up empty or thin, especially for a "how do I..." or
+   "getting this error..." question?** Try the community content next:
+   `grep -ril "<keyword>" $DOCS_DIR/raw/community-howto/<capability>/*.md
+   $DOCS_DIR/raw/community-troubleshooting/<capability>/*.md` (also check
+   `.../community-{howto,troubleshooting}/_uncategorized/*.md` — many of
+   these articles aren't tagged with a capability at all). If a capability
+   isn't obvious, community-troubleshooting articles are usually titled
+   after the exact error message, so grepping the error text directly
+   works well.
+6. Nothing matches anywhere? Say so — try another capability or keyword
+   before giving up, don't guess at an answer.
+
+**Citing community content:** always say explicitly that it's community-
+contributed, not official Liferay documentation (e.g. "According to a
+community How-To article: ..."), still citing the source URL. Prefer an
+official-docs answer over a community one when both cover the same
+question — the frontmatter's `source_type:` field tells you which is
+which (`source_type: community-howto` / `community-troubleshooting` vs.
+no `source_type` field at all for official docs).
 
 ## Capability map
 
@@ -81,3 +98,11 @@ than guessing one and stopping.
   current it is.
 - `reports/filtered/{capability}_urls.txt` lists every in-scope URL per
   capability if you need to browse available topics without grepping content.
+- `raw/community-howto/` and `raw/community-troubleshooting/` are a separate,
+  much larger (~4,800 pages) set of community-contributed recipes and
+  troubleshooting articles from learn.liferay.com/kb-article/*, fetched by
+  `uvx liferay-docs-scraper-community` (a separate, multi-hour command --
+  not part of the weekly official-docs refresh, and not required for this
+  skill to work at all). Same capability folder names as the official docs,
+  plus a `_uncategorized/` bucket for articles the site itself didn't tag
+  with a capability. Lower authority than official docs -- see Step 3.

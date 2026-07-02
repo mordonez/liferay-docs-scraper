@@ -126,6 +126,25 @@ on a page that came back wrong or truncated; see
 [`docs/adr/0002-drop-content-validation.md`](docs/adr/0002-drop-content-validation.md)
 for the trade-off behind that choice).
 
+### Optional: community How-To and Troubleshooting articles
+
+```bash
+uvx liferay-docs-scraper-community
+```
+
+A separate, much larger scrape (~4,800 pages vs. ~1,900) of
+learn.liferay.com's community-contributed How-To recipes and
+Troubleshooting articles -- takes several hours, not part of the weekly
+official-docs refresh, and entirely optional (the skill works fine
+without it). Writes to `raw/community-howto/{capability}/*.md` and
+`raw/community-troubleshooting/{capability}/*.md` -- separate from the
+official docs, since these carry a "community-contributed, not officially
+supported" disclaimer on the live site and the skill treats them as a
+lower-authority, secondary source. Many articles aren't tagged with a
+capability at all on the site itself, and land in `_uncategorized/`
+instead of being guessed at. `--resource-type howto|troubleshooting` or
+`--limit N` for a smaller run.
+
 ## Reference: the skill in detail
 
 ```bash
