@@ -73,6 +73,14 @@ You'll see:
 ├───────────────────────────────────────╯
 ```
 
+> **Use `-a claude-code` explicitly, as above -- don't rely on the
+> interactive agent picker or `--yes`.** `npx skills` has a couple of open
+> bugs ([#1138](https://github.com/vercel-labs/skills/issues/1138),
+> [#1412](https://github.com/vercel-labs/skills/issues/1412)) where Claude
+> Code silently gets skipped -- no `.claude/skills/` symlink, no error, the
+> summary still prints ✓ -- when it isn't the one explicitly-named agent in
+> the install. `-a claude-code` sidesteps both.
+
 **3. Ask Claude Code a Liferay question**, e.g. "how do I configure a
 synonym set in Liferay search?" The skill finds the docs, greps the
 `search` capability, reads `search-administration-and-tuning-synonym-sets.md`,
@@ -148,10 +156,11 @@ instead of being guessed at. `--resource-type howto|troubleshooting` or
 ## Reference: the skill in detail
 
 ```bash
-npx skills add mordonez/liferay-docs-scraper --skill liferay-expert
+npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
 ```
 
-Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-expert/`
+(See the note in Quickstart step 2 above on why `-a claude-code` is worth
+keeping explicit.) Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-expert/`
 in any project. Claude Code picks it up automatically; the skill itself
 resolves `$LIFERAY_DOCS_DIR` (or the OS default above) to find the docs,
 so it works the same regardless of which project you installed it into.
