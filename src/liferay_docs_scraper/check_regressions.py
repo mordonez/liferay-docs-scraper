@@ -31,6 +31,23 @@ def body_len(text: str) -> int:
     return len(body)
 
 
+def is_git_repo() -> bool:
+    """True only if ROOT is inside a git work tree AND has at least one
+    commit -- a freshly `git init`-ed dir with no commits yet has no HEAD
+    to diff against either."""
+    inside_work_tree = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if inside_work_tree.returncode != 0:
+        return False
+    has_head = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    return has_head.returncode == 0
+
+
 def git_show(ref: str, path: str) -> str | None:
     result = subprocess.run(
         ["git", "show", f"{ref}:{path}"], cwd=ROOT, capture_output=True, text=True,
@@ -49,7 +66,17 @@ def changed_raw_files(ref: str) -> list[str]:
 
 
 def run_check(ref: str = "HEAD", shrink_threshold: float = 0.5, growth_threshold: float = 3.0) -> bool:
-    """Print the regression report; return True iff something looked suspicious."""
+    """Print the regression report; return True iff something looked suspicious.
+
+    No-ops (returns False) if resolve_docs_dir() isn't a git repo yet -- there's
+    nothing to diff against on a first-ever run. `git init` it once to start
+    getting this check on subsequent runs."""
+    if not is_git_repo():
+        print(f"{ROOT} no es un repo git todavía -- nada que comparar, se omite "
+              "la verificación de regresiones. `git init` ahí una vez para "
+              "activarla en corridas futuras.")
+        return False
+
     changed = changed_raw_files(ref)
     print(f"Archivos .md cambiados en raw/ vs {ref}: {len(changed)}")
 
