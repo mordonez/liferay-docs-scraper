@@ -168,11 +168,12 @@ there is no better source.
 uv sync --group dev
 uv run ruff check .
 uv run pytest
-uv run python -m build
+uv build
 ```
 
 CI runs lint, tests, and package build on Python 3.10, 3.11, 3.12, and 3.13.
-It does not run a real scrape.
+It does not run a real scrape. Release publishing is documented in
+[`docs/release.md`](docs/release.md).
 
 ## License
 
