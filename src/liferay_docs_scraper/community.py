@@ -59,6 +59,7 @@ import asyncio
 import hashlib
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,7 +69,7 @@ from bs4 import BeautifulSoup
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
-from .filter_urls import resolve_docs_dir
+from .filter_urls import atomic_write_text, quote_frontmatter_value, resolve_docs_dir, safe_filename_stem
 
 SEARCH_URL = "https://learn.liferay.com/learn-search"
 # key -> (resource-type facet id, source_type written to frontmatter)
@@ -135,6 +136,7 @@ class ArticleOutcome:
 class RunStats:
     discovered_total: int = 0
     fetch_failed: list[str] = field(default_factory=list)
+    crawl_errors: list[str] = field(default_factory=list)
     unmapped_capability_tags: dict[str, int] = field(default_factory=dict)
     outcomes: list[ArticleOutcome] = field(default_factory=list)
 
@@ -155,13 +157,17 @@ async def discover_article_urls(crawler: AsyncWebCrawler, resource_type_id: str)
             "|| document.body.innerText.includes('There are no results')"
         ),
         page_timeout=30000,
+        semaphore_count=3,
+        max_retries=2,
+        mean_delay=0.25,
+        max_range=0.75,
     )
     page = 1
     while True:
         url = f"{SEARCH_URL}?q=&resource-type={resource_type_id}&delta={PAGE_SIZE}&start={page}"
         result = await crawler.arun(url=url, config=listing_config)
         if not result.success:
-            break
+            raise RuntimeError(f"falló la página de búsqueda {page}: {url}")
         soup = BeautifulSoup(result.html, "html.parser")
         page_urls = {
             a["href"] for a in soup.find_all("a", href=True)
@@ -174,10 +180,6 @@ async def discover_article_urls(crawler: AsyncWebCrawler, resource_type_id: str)
     return sorted(urls)
 
 
-MAX_SLUG_BYTES = 150  # stay well under the 255-byte filename limit (macOS/Linux),
-                      # leaving room for the capability dir and .md extension
-
-
 def safe_slug(url: str) -> str:
     """Filesystem-safe filename stem for a kb-article URL. A handful of
     slugs are percent-encoded non-ASCII titles (e.g. Japanese) that, still
@@ -187,12 +189,7 @@ def safe_slug(url: str) -> str:
     language or length."""
     decoded_path = unquote(urlparse(url).path)
     raw = decoded_path.removeprefix("/kb-article").strip("/").replace("/", "-") or "index"
-    encoded = raw.encode("utf-8")
-    if len(encoded) <= MAX_SLUG_BYTES:
-        return raw
-    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:10]
-    truncated = encoded[:MAX_SLUG_BYTES].decode("utf-8", errors="ignore")
-    return f"{truncated}-{digest}"
+    return safe_filename_stem(raw)
 
 
 def read_existing_hash(path: Path) -> str | None:
@@ -244,19 +241,19 @@ def build_frontmatter(url: str, source_type: str, capability: str | None, tags: 
     content_hash = hashlib.sha256(full_content.encode("utf-8")).hexdigest()
     lines = [
         "---",
-        f'url: "{url}"',
+        f"url: {quote_frontmatter_value(url)}",
         f"source_type: {source_type}",
         f"capability: {capability or 'uncategorized'}",
     ]
     for label in ("Feature", "Deployment Approach", "Applicable Versions", "Resource Type"):
         if label in tags:
             key = label.lower().replace(" ", "_")
-            lines.append(f'{key}: "{tags[label]}"')
+            lines.append(f"{key}: {quote_frontmatter_value(tags[label])}")
     if "Capability" in tags:
-        lines.append(f'capability_tag_raw: "{tags["Capability"]}"')
+        lines.append(f"capability_tag_raw: {quote_frontmatter_value(tags['Capability'])}")
     lines += [
-        f'fetched_at: "{fetched_at}"',
-        f'content_hash: "sha256:{content_hash}"',
+        f"fetched_at: {quote_frontmatter_value(fetched_at)}",
+        f"content_hash: {quote_frontmatter_value(f'sha256:{content_hash}')}",
         "---",
         "",
     ]
@@ -275,50 +272,62 @@ async def run_resource_type(
     stats.discovered_total = len(urls)
     print(f"  {len(urls)} URLs encontradas")
 
-    fetch_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, wait_for="css:body", page_timeout=30000, stream=True)
+    fetch_config = CrawlerRunConfig(
+        cache_mode=CacheMode.BYPASS,
+        wait_for="css:body",
+        page_timeout=30000,
+        semaphore_count=3,
+        max_retries=2,
+        mean_delay=0.25,
+        max_range=0.75,
+        stream=True,
+    )
 
     done = 0
-    stream = await crawler.arun_many(urls=urls, config=fetch_config)
-    async for result in stream:
-        done += 1
-        if done % 200 == 0:
-            print(f"  ...{done}/{len(urls)}")
+    try:
+        stream = await crawler.arun_many(urls=urls, config=fetch_config)
+        async for result in stream:
+            done += 1
+            if done % 200 == 0:
+                print(f"  ...{done}/{len(urls)}")
 
-        if not result.success:
-            stats.fetch_failed.append(result.url)
-            continue
-
-        # One bad article (unexpected HTML shape, filesystem edge case, ...)
-        # must not kill a run that's fetching thousands of pages -- log and
-        # move on rather than letting an exception propagate out of the loop.
-        try:
-            parsed = extract_article(result.html, result.url)
-            if parsed is None:
+            if not result.success:
                 stats.fetch_failed.append(result.url)
                 continue
 
-            tag_text = parsed["tags"].get("Capability")
-            capability = map_capability(tag_text)
-            if tag_text and capability is None:
-                stats.unmapped_capability_tags[tag_text] = stats.unmapped_capability_tags.get(tag_text, 0) + 1
+            # One bad article (unexpected HTML shape, filesystem edge case, ...)
+            # must not kill a run that's fetching thousands of pages -- log and
+            # move on rather than letting an exception propagate out of the loop.
+            try:
+                parsed = extract_article(result.html, result.url)
+                if parsed is None:
+                    stats.fetch_failed.append(result.url)
+                    continue
 
-            slug = safe_slug(result.url)
-            bucket = capability or "_uncategorized"
-            out_path = RAW_DIR / source_type / bucket / f"{slug}.md"
-            out_path.parent.mkdir(parents=True, exist_ok=True)
+                tag_text = parsed["tags"].get("Capability")
+                capability = map_capability(tag_text)
+                if tag_text and capability is None:
+                    stats.unmapped_capability_tags[tag_text] = stats.unmapped_capability_tags.get(tag_text, 0) + 1
 
-            body = f"# {parsed['title']}\n\n{parsed['body']}"
-            new_content = build_frontmatter(result.url, source_type, capability, parsed["tags"], body) + body
+                slug = safe_slug(result.url)
+                bucket = capability or "_uncategorized"
+                out_path = RAW_DIR / source_type / bucket / f"{slug}.md"
 
-            old_hash = read_existing_hash(out_path)
-            existed_before = out_path.exists()
-            out_path.write_text(new_content, encoding="utf-8")
-            new_hash = read_existing_hash(out_path)
-            status = "new" if not existed_before else ("unchanged" if old_hash == new_hash else "updated")
-            stats.outcomes.append(ArticleOutcome(result.url, capability, slug, status))
-        except Exception as exc:  # noqa: BLE001 - any per-article failure is non-fatal here
-            print(f"  ERROR procesando {result.url}: {exc}")
-            stats.fetch_failed.append(result.url)
+                body = f"# {parsed['title']}\n\n{parsed['body']}"
+                new_content = build_frontmatter(result.url, source_type, capability, parsed["tags"], body) + body
+
+                old_hash = read_existing_hash(out_path)
+                existed_before = out_path.exists()
+                atomic_write_text(out_path, new_content)
+                new_hash = read_existing_hash(out_path)
+                status = "new" if not existed_before else ("unchanged" if old_hash == new_hash else "updated")
+                stats.outcomes.append(ArticleOutcome(result.url, capability, slug, status))
+            except Exception as exc:  # noqa: BLE001 - any per-article failure is non-fatal here
+                print(f"  ERROR procesando {result.url}: {exc}")
+                stats.fetch_failed.append(result.url)
+    except Exception as exc:  # noqa: BLE001 - keep partial report data for long runs
+        stats.crawl_errors.append(str(exc))
+        print(f"\nERROR: fetch interrumpido antes de terminar {key}: {exc}", file=sys.stderr)
 
     return stats
 
@@ -334,19 +343,25 @@ def counts_by_capability(stats: RunStats) -> dict[str, int]:
 def write_report(key: str, stats: RunStats) -> None:
     FILTERED_DIR.mkdir(parents=True, exist_ok=True)
     report_path = FILTERED_DIR / f"{key}_summary.json"
-    report_path.write_text(json.dumps({
+    atomic_write_text(report_path, json.dumps({
         "discovered_total": stats.discovered_total,
         "written_total": len(stats.outcomes),
         "fetch_failed_count": len(stats.fetch_failed),
+        "crawl_error_count": len(stats.crawl_errors),
+        "crawl_errors": stats.crawl_errors,
         "by_capability": counts_by_capability(stats),
         "unmapped_capability_tags": stats.unmapped_capability_tags,
-    }, indent=2), encoding="utf-8")
+    }, indent=2) + "\n")
 
 
 def print_summary(key: str, stats: RunStats) -> None:
     print(f"\n--- {key}: resumen ---")
     print(f"Descubiertos: {stats.discovered_total}")
     print(f"Escritos: {len(stats.outcomes)}")
+    if stats.crawl_errors:
+        print(f"Errores fatales de crawl: {len(stats.crawl_errors)}")
+        for error in stats.crawl_errors:
+            print(f"  - {error}")
     print(f"Fallos de fetch: {len(stats.fetch_failed)}")
     print("Por capability:")
     for capability, count in sorted(counts_by_capability(stats).items(), key=lambda x: -x[1]):
@@ -374,7 +389,7 @@ async def run_all(resource_type_filter: str | None, limit: int | None) -> bool:
                 continue
             write_report(source_type, stats)
             print_summary(source_type, stats)
-            any_failures = any_failures or bool(stats.fetch_failed)
+            any_failures = any_failures or bool(stats.fetch_failed) or bool(stats.crawl_errors)
     return any_failures
 
 
@@ -385,7 +400,11 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None,
                          help="Only fetch the first N discovered articles per resource type (smaller test run).")
     args = parser.parse_args()
-    asyncio.run(run_all(args.resource_type, args.limit))
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit must be greater than zero")
+    failed = asyncio.run(run_all(args.resource_type, args.limit))
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

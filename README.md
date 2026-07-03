@@ -1,180 +1,180 @@
 # liferay-docs-scraper
 
-Scrape `learn.liferay.com/w/dxp/*` into a local Markdown copy of the docs, then answer
-Liferay DXP questions in Claude Code by grepping and citing it — no
-bundled docs, no embeddings, no vector DB.
+Scrape `learn.liferay.com/w/dxp/*` into local Markdown, then let Claude Code
+answer Liferay DXP questions by searching those files. No bundled Liferay
+content, no embeddings, no vector DB.
 
 [![PyPI](https://img.shields.io/pypi/v/liferay-docs-scraper.svg)](https://pypi.org/project/liferay-docs-scraper/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://pypi.org/project/liferay-docs-scraper/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## What makes this different
-
-- **No bundled copyrighted content.** This repo and the PyPI package ship
-  only the scraping tool, never Liferay's documentation text. Each user
-  scrapes their own local copy directly from learn.liferay.com. See
-  [`docs/adr/0001-crawl4ai-based-corpus-pipeline.md`](docs/adr/0001-crawl4ai-based-corpus-pipeline.md)
-  for the full reasoning on why that's the safer distribution model.
-- **No embeddings, no vector DB.** Plain `grep` + `Read` over ~1,800
-  well-organized Markdown files is fast enough — the `liferay-expert` skill
-  just searches those docs directly.
-- **One shared docs folder, not per-project.** The scraper writes to a single
-  OS-appropriate per-user directory (resolved by `resolve_docs_dir()`), so
-  every project that installs the skill reads the same docs instead of
-  duplicating a ~30-40 minute scrape.
-
-## How it works
-
-1. **Scrape:** `uvx liferay-docs-scraper` runs a [crawl4ai](https://github.com/unclecode/crawl4ai)
-   (free, self-hosted, Playwright-based) BFS crawl of `learn.liferay.com/w/dxp/*`
-   and writes clean Markdown to `raw/{capability}/*.md`, one file per page,
-   across 14 Liferay DXP capabilities.
-2. **Install:** `npx skills add mordonez/liferay-docs-scraper --skill liferay-expert`
-   drops the `liferay-expert` skill into any project's `.claude/skills/`.
-3. **Ask:** Claude Code greps the docs for the relevant capability, reads
-   the matching page(s), and answers — always citing the source URL from
-   that file's frontmatter.
-
-## Contents
-
-- [Quickstart](#quickstart)
-- [Reference: the scraper in detail](#reference-the-scraper-in-detail)
-- [Reference: the skill in detail](#reference-the-skill-in-detail)
-
 ## Quickstart
 
-The recommended order for a first-time setup: scrape, then install the
-skill, then ask questions.
-
-**1. Scrape the docs (one-time, ~30-40 min):**
+From zero to asking Liferay questions in Claude Code:
 
 ```bash
-uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
-uvx liferay-docs-scraper
-```
-
-Run this from anywhere -- it does not write into your current directory,
-see "Reference: the scraper in detail" below for exactly where it goes.
-
-**2. Install the skill into whatever project you're working in:**
-
-```bash
-npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
-```
-
-You'll see:
-
-```
-◇  Installed 1 skill ───────────────────╮
-│                                       │
-│  ✓ liferay-expert (copied)            │
-│    → ./.claude/skills/liferay-expert  │
-│                                       │
-├───────────────────────────────────────╯
-```
-
-> **Use `-a claude-code` explicitly, as above -- don't rely on the
-> interactive agent picker or `--yes`.** `npx skills` has a couple of open
-> bugs ([#1138](https://github.com/vercel-labs/skills/issues/1138),
-> [#1412](https://github.com/vercel-labs/skills/issues/1412)) where Claude
-> Code silently gets skipped -- no `.claude/skills/` symlink, no error, the
-> summary still prints ✓ -- when it isn't the one explicitly-named agent in
-> the install. `-a claude-code` sidesteps both.
-
-**3. Ask Claude Code a Liferay question**, e.g. "how do I configure a
-synonym set in Liferay search?" The skill finds the docs, greps the
-`search` capability, reads `search-administration-and-tuning-synonym-sets.md`,
-and answers grounded in that page -- citing
-`https://learn.liferay.com/w/dxp/search/search-administration-and-tuning/synonym-sets`
-as the source.
-
-The docs are shared across every project where you install the skill (see
-"OS default location" below), so step 1 is only ever needed once per
-machine -- rerun it later just to refresh, not per-project.
-
-**If you install the skill without doing step 1 first** (or the docs go
-stale), it notices and tells you what to run rather than guessing or
-answering ungrounded -- it never launches the ~30-40 min scrape on its own
-mid-conversation. See "Step 1/2" in `skills/liferay-expert/SKILL.md` for
-that check.
-
-## Reference: the scraper in detail
-
-Requires Python 3.10-3.13 (crawl4ai's Playwright dependency doesn't yet
-support 3.14) and [uv](https://docs.astral.sh/uv/).
-
-```bash
-# One-time: installs the Playwright/Chromium browser crawl4ai drives
+# 1. One-time browser setup for crawl4ai/Playwright
 uvx --from crawl4ai crawl4ai-setup
 
-# From anywhere -- the docs do NOT go in your current directory:
+# 2. Scrape the official Liferay DXP docs (~30-40 min)
+uvx liferay-docs-scraper
+
+# 3. Install the Claude Code skill in your project
+npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
+
+# 4. Check that docs and skill are ready
+uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+```
+
+Then ask Claude Code something like:
+
+> How do I configure synonym sets in Liferay Search?
+
+The skill searches the local Markdown, reads the matching page, and cites the
+source URL from that file's frontmatter.
+
+Keep `-a claude-code` in the install command. It avoids interactive installer
+edge cases where the skill can appear installed but not land in
+`.claude/skills/`.
+
+## What this repo does not do
+
+- It does not ship Liferay documentation text. The package contains the scraper
+  and skill only; each user fetches their own local copy from
+  `learn.liferay.com`.
+- It does not use embeddings, RAG infrastructure, or a vector database. The
+  skill uses normal file search and reads Markdown directly.
+- It does not scrape automatically from the skill. If docs are missing, the
+  skill tells you what command to run instead of starting a long crawl in the
+  middle of a conversation.
+
+## Requirements
+
+- Python 3.10-3.13
+- [`uv`](https://docs.astral.sh/uv/)
+- Node/npm for `npx skills add`
+
+`crawl4ai` drives Playwright, so run this once before the first scrape:
+
+```bash
+uvx --from crawl4ai crawl4ai-setup
+```
+
+## Scraper Reference
+
+Run the official-docs scraper:
+
+```bash
 uvx liferay-docs-scraper
 ```
 
-This takes roughly 30-40 minutes (BFS deep crawl of ~1900 pages across 14
-capabilities) and writes to **`~/.liferay-docs`** — one shared location, the
-same on macOS, Linux, and Windows, so it's the same docs no matter which
-project you're in when the skill looks for it. Set `LIFERAY_DOCS_DIR` to
-override (e.g. to keep a project-local copy instead).
+It crawls `https://learn.liferay.com/w/dxp/index` with crawl4ai's BFS crawler,
+keeps URLs under `/w/dxp/*`, extracts `.learn-article-content`, classifies each
+page into one of 14 Liferay capabilities, and writes Markdown to one shared
+docs directory.
 
-Inside that directory:
+Default docs directory:
 
-- `raw/{capability}/*.md` — the docs, one file per page
-- `raw/_navigation/{capability}/*.md` — pure TOC pages, kept but deprioritized
-- `raw/_removed/{capability}/*.md` — pages confirmed gone from the live site
-- `reports/filtered/` — URL manifests, self-hosted prune log, run summary
+```text
+~/.liferay-docs
+```
 
-Re-run it anytime (weekly recommended) to refresh: it starts from zero every
-time, so it naturally picks up new pages, updates changed ones, and
-quarantines (never deletes) removed ones.
+Override it when needed:
 
-This tool's only job is fetching and saving pages -- it does not validate
-that fetched content is correct (crawl4ai can occasionally report success
-on a page that came back wrong or truncated; see
-[`docs/adr/0002-drop-content-validation.md`](docs/adr/0002-drop-content-validation.md)
-for the trade-off behind that choice).
+```bash
+export LIFERAY_DOCS_DIR="$PWD/.liferay-docs"
+uvx liferay-docs-scraper
+```
 
-### Optional: community How-To and Troubleshooting articles
+Directory layout:
+
+```text
+~/.liferay-docs/
+  raw/{capability}/*.md
+  raw/_navigation/{capability}/*.md
+  raw/_removed/{capability}/*.md
+  reports/filtered/
+```
+
+Useful commands:
+
+```bash
+# Smaller smoke run
+uvx liferay-docs-scraper --max-pages 200
+
+# Check local docs and current-project skill installation
+uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+```
+
+The scraper writes files atomically, retries page fetches through crawl4ai,
+uses bounded concurrency, and exits non-zero if page fetches or the crawl stream
+fail. If the crawl is interrupted, already written pages remain usable, but the
+run is marked failed and orphan quarantine is skipped so a partial crawl cannot
+move good pages to `raw/_removed/`.
+
+## Community Articles
+
+Optional, larger, and lower-authority:
 
 ```bash
 uvx --from liferay-docs-scraper liferay-docs-scraper-community
 ```
 
-`liferay-docs-scraper-community` is a second entry point in the same
-`liferay-docs-scraper` PyPI package, not a package of its own -- `uvx`
-assumes the tool name *is* the package name unless told otherwise with
-`--from`, so a bare `uvx liferay-docs-scraper-community` fails to resolve.
-(Already installed the base package? `pip install liferay-docs-scraper`
-+ running `liferay-docs-scraper-community` directly also works, same
-reason.)
+This fetches Liferay community How-To and Troubleshooting articles from
+`learn.liferay.com/kb-article/*`. It writes them separately:
 
-A separate, much larger scrape (~4,800 pages vs. ~1,900) of
-learn.liferay.com's community-contributed How-To recipes and
-Troubleshooting articles -- takes several hours, not part of the weekly
-official-docs refresh, and entirely optional (the skill works fine
-without it). Writes to `raw/community-howto/{capability}/*.md` and
-`raw/community-troubleshooting/{capability}/*.md` -- separate from the
-official docs, since these carry a "community-contributed, not officially
-supported" disclaimer on the live site and the skill treats them as a
-lower-authority, secondary source. Many articles aren't tagged with a
-capability at all on the site itself, and land in `_uncategorized/`
-instead of being guessed at. `--resource-type howto|troubleshooting` or
-`--limit N` for a smaller run.
+```text
+raw/community-howto/{capability}/*.md
+raw/community-troubleshooting/{capability}/*.md
+```
 
-## Reference: the skill in detail
+Many community articles are not tagged with a capability by the site; those go
+to `_uncategorized/`. The `liferay-expert` skill treats community content as a
+secondary source and says so in answers.
+
+Useful options:
+
+```bash
+uvx --from liferay-docs-scraper liferay-docs-scraper-community --resource-type howto
+uvx --from liferay-docs-scraper liferay-docs-scraper-community --limit 100
+```
+
+## Skill Reference
+
+Install into the current project:
 
 ```bash
 npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
 ```
 
-(See the note in Quickstart step 2 above on why `-a claude-code` is worth
-keeping explicit.) Or just copy `skills/liferay-expert/SKILL.md` into `.claude/skills/liferay-expert/`
-in any project. Claude Code picks it up automatically; the skill itself
-resolves `$LIFERAY_DOCS_DIR` (or the OS default above) to find the docs,
-so it works the same regardless of which project you installed it into.
+Manual install also works: copy `skills/liferay-expert/SKILL.md` to:
+
+```text
+.claude/skills/liferay-expert/SKILL.md
+```
+
+The skill resolves docs exactly like the scraper:
+
+1. `$LIFERAY_DOCS_DIR`, if set.
+2. `~/.liferay-docs`, otherwise.
+
+When answering, it searches `raw/{capability}/*.md`, reads the best matching
+files, and cites their `url:` frontmatter. It skips `raw/_navigation/` unless
+there is no better source.
+
+## Development
+
+```bash
+uv sync --group dev
+uv run ruff check .
+uv run pytest
+uv run python -m build
+```
+
+CI runs lint, tests, and package build on Python 3.10, 3.11, 3.12, and 3.13.
+It does not run a real scrape.
 
 ## License
 
-[MIT](LICENSE) — applies to this tool and skill only, not to the Liferay
-documentation text it helps you fetch (that stays Liferay's, and each user
-scrapes their own local copy directly from learn.liferay.com).
+[MIT](LICENSE) applies to this tool and skill only. Liferay documentation
+content remains Liferay's content and is fetched locally by each user.

@@ -9,7 +9,10 @@ where that raw/ docs folder actually lives on disk.
 """
 
 import hashlib
+import json
 import os
+import tempfile
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -54,6 +57,17 @@ SELF_HOSTED_PRUNE_RULES = [
         "/cloud-native-experience/cne-cloud-provider-ready/cne-gcp-ready/",
     ),
 ]
+
+MAX_FILENAME_STEM_BYTES = 150
+WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+INVALID_FILENAME_CHARS = set('<>:"\\|?*')
 
 
 def normalize(url: str) -> str:
@@ -107,7 +121,59 @@ def slugify(url: str, prefix: str) -> str:
     remainder = path[len(prefix):].strip("/")
     if not remainder:
         return "index"
-    return remainder.replace("/", "-")
+    return safe_filename_stem(remainder.replace("/", "-"))
+
+
+def quote_frontmatter_value(value: str) -> str:
+    """Double-quote a scalar safely for the simple YAML frontmatter we write."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def safe_filename_stem(value: str) -> str:
+    """Return a cross-platform filename stem, capped below common byte limits."""
+    cleaned = "".join(
+        "-" if char in INVALID_FILENAME_CHARS or ord(char) < 32 else char
+        for char in value
+    ).strip(" .")
+    if not cleaned:
+        cleaned = "index"
+    if cleaned.upper() in WINDOWS_RESERVED_NAMES:
+        cleaned = f"_{cleaned}"
+
+    encoded = cleaned.encode("utf-8")
+    if len(encoded) <= MAX_FILENAME_STEM_BYTES:
+        return cleaned
+
+    digest = hashlib.sha256(cleaned.encode("utf-8")).hexdigest()[:10]
+    prefix_bytes = MAX_FILENAME_STEM_BYTES - len(digest) - 1
+    truncated = encoded[:prefix_bytes].decode("utf-8", errors="ignore").strip(" .")
+    if not truncated:
+        truncated = "index"
+    return f"{truncated}-{digest}"
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    """Write UTF-8 text atomically in the target directory."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_name = temp_file.name
+            temp_file.write(content)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.replace(temp_name, path)
+    finally:
+        if temp_name:
+            with suppress(FileNotFoundError):
+                os.unlink(temp_name)
 
 
 def build_frontmatter(url: str, capability: str, markdown: str) -> str:
@@ -115,10 +181,10 @@ def build_frontmatter(url: str, capability: str, markdown: str) -> str:
     content_hash = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
     lines = [
         "---",
-        f'url: "{url}"',
+        f"url: {quote_frontmatter_value(url)}",
         f"capability: {capability}",
-        f'fetched_at: "{fetched_at}"',
-        f'content_hash: "sha256:{content_hash}"',
+        f"fetched_at: {quote_frontmatter_value(fetched_at)}",
+        f"content_hash: {quote_frontmatter_value(f'sha256:{content_hash}')}",
         "---",
         "",
     ]

@@ -19,22 +19,28 @@ conversation:
   Windows -- the leading dot only actually hides it from a plain listing on
   macOS/Linux; on Windows it's just part of the folder name).
 
-Call this `$DOCS_DIR` below. It should contain a `raw/` subfolder.
+Call this `$DOCS_DIR` below. It should contain Markdown files under
+`raw/{capability}/`.
 
 ## Step 2: is it there, and is it fresh?
 
-- **No `raw/` under `$DOCS_DIR`?** Tell the user to run the scraper once
-  (takes ~30-40 min, hits learn.liferay.com directly):
+- **No official Markdown under `$DOCS_DIR/raw/{capability}/`?** Tell the
+  user to run the scraper once (takes ~30-40 min, hits learn.liferay.com
+  directly):
   ```
   uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
   uvx liferay-docs-scraper
   ```
   Don't launch this yourself mid-conversation — it's long-running and the
   user should choose when to wait for it.
-- **`raw/` exists?** Check a few files' `fetched_at` frontmatter. If it's
-  more than ~7 days old, mention the docs may be stale and that
+- **Official Markdown exists?** Check a few files' `fetched_at` frontmatter.
+  If it's more than ~7 days old, mention the docs may be stale and that
   `uvx liferay-docs-scraper` refreshes them (still answer with what's
   there — don't block on refreshing).
+- If the user wants a one-command local check, tell them:
+  ```
+  uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+  ```
 
 ## Step 3: search and answer
 
@@ -91,6 +97,10 @@ than guessing one and stopping.
 
 - All paths above (`raw/...`, `reports/...`) are relative to `$DOCS_DIR` from
   Step 1, not the current project directory.
+- `liferay-docs-scraper-doctor` checks whether official Markdown exists in
+  the shared docs directory and whether this project has
+  `.claude/skills/liferay-expert/SKILL.md`; it never scrapes or installs
+  anything.
 - `raw/_navigation/{capability}/` = TOC-only pages, excluded on purpose —
   skip them, their linked subpages exist as real files elsewhere.
 - `raw/_removed/{capability}/` = pages no longer on the live site. Only use

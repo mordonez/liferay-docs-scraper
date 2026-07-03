@@ -67,19 +67,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .classify_pages import analyze_body, classify as classify_navigation
+from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
+from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, DomainFilter, FilterChain, URLPatternFilter
+
+from .classify_pages import analyze_body
+from .classify_pages import classify as classify_navigation
 from .filter_urls import (
     CAPABILITIES,
     SELF_HOSTED_PRUNE_RULES,
+    atomic_write_text,
     build_frontmatter,
     classify_url,
     normalize,
     resolve_docs_dir,
     slugify,
 )
-
-from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, ContentTypeFilter, DomainFilter, FilterChain, URLPatternFilter
 
 # crawl4ai's BFS strategy logs a WARNING (via the stdlib logging module, so
 # it ignores our own verbose=False) for every discovered link that isn't a
@@ -109,6 +111,11 @@ CONTENT_SELECTOR = ".learn-article-content"
 
 DEFAULT_MAX_DEPTH = 12
 DEFAULT_MAX_PAGES = 3000
+DEFAULT_PAGE_TIMEOUT_MS = 60_000
+DEFAULT_SEMAPHORE_COUNT = 3
+DEFAULT_MAX_RETRIES = 2
+DEFAULT_MEAN_DELAY_SECONDS = 0.25
+DEFAULT_MAX_DELAY_RANGE_SECONDS = 0.75
 # If a capability's freshly discovered URL count falls below this fraction of
 # its previous count, treat the run as suspect and skip quarantining orphans
 # for that capability rather than mass-deleting good content on a bad crawl.
@@ -139,6 +146,7 @@ class PageOutcome:
 class RunStats:
     discovered_total: int = 0
     fetch_failed: list[str] = field(default_factory=list)
+    crawl_errors: list[str] = field(default_factory=list)
     unmatched: list[str] = field(default_factory=list)
     pruned: list[tuple] = field(default_factory=list)
     outcomes: dict = field(default_factory=lambda: {name: [] for name in CAPABILITIES})
@@ -167,6 +175,11 @@ def build_deep_crawl_config(max_depth: int, max_pages: int) -> CrawlerRunConfig:
         deep_crawl_strategy=strategy,
         css_selector=CONTENT_SELECTOR,
         wait_for=f"css:{CONTENT_SELECTOR}",
+        page_timeout=DEFAULT_PAGE_TIMEOUT_MS,
+        semaphore_count=DEFAULT_SEMAPHORE_COUNT,
+        max_retries=DEFAULT_MAX_RETRIES,
+        mean_delay=DEFAULT_MEAN_DELAY_SECONDS,
+        max_range=DEFAULT_MAX_DELAY_RANGE_SECONDS,
         cache_mode=CacheMode.BYPASS,
         stream=True,
         verbose=False,
@@ -187,6 +200,64 @@ def estimate_total_pages() -> int | None:
         return None
 
 
+def process_crawl_result(result, stats: RunStats) -> None:
+    url = normalize(result.url)
+
+    if not result.success:
+        stats.fetch_failed.append(url)
+        return
+
+    stats.discovered_total += 1
+    classification = classify_url(url)
+    capability = classification["capability"]
+
+    if capability is None:
+        if not classification["known_out_of_scope"]:
+            stats.unmatched.append(url)
+        return
+
+    if classification["prune_reason"] is not None:
+        stats.pruned.append((url, classification["prune_reason"]))
+        return
+
+    markdown_obj = getattr(result, "markdown", None)
+    markdown = getattr(markdown_obj, "raw_markdown", None)
+    if not markdown:
+        stats.fetch_failed.append(url)
+        return
+
+    prefix = CAPABILITIES[capability]
+    slug = slugify(url, prefix)
+
+    # Pure navigation/TOC pages (per classify_pages.py's heuristic) go to
+    # raw/_navigation/ instead of raw/{capability}/, so the docs a future
+    # consultation skill reads stays high-signal.
+    total_words, link_ratio = analyze_body(markdown)
+    is_navigation = classify_navigation(total_words, link_ratio) == "index"
+
+    content_path = RAW_DIR / capability / f"{slug}.md"
+    navigation_path = NAVIGATION_DIR / capability / f"{slug}.md"
+    out_path = navigation_path if is_navigation else content_path
+    other_path = content_path if is_navigation else navigation_path
+
+    new_content = build_frontmatter(url, capability, markdown) + markdown
+    old_hash_line = read_existing_hash(out_path) or read_existing_hash(other_path)
+    existed_before = out_path.exists() or other_path.exists()
+    atomic_write_text(out_path, new_content)
+    if other_path.exists():
+        other_path.unlink()  # reclassified since last run -- drop the stale copy
+    new_hash_line = read_existing_hash(out_path)
+
+    if not existed_before:
+        status = "new"
+    elif old_hash_line == new_hash_line:
+        status = "unchanged"
+    else:
+        status = "updated"
+
+    stats.outcomes[capability].append(PageOutcome(url, capability, slug, status, is_navigation))
+
+
 async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
     stats = RunStats()
     config = build_deep_crawl_config(max_depth, max_pages)
@@ -194,71 +265,34 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
     start_time = time.monotonic()
     seen = 0
 
-    async with AsyncWebCrawler() as crawler:
-        stream = await crawler.arun(url=SEED_URL, config=config)
-        async for result in stream:
-            seen += 1
-            if seen % PROGRESS_EVERY == 0:
-                elapsed_min = (time.monotonic() - start_time) / 60
-                rate = seen / elapsed_min if elapsed_min > 0 else 0
-                if expected_total:
-                    pct = min(100, round(100 * seen / expected_total))
-                    progress = f"~{pct}% de la última corrida -- estimación, no exacto"
-                else:
-                    progress = "primera corrida en este docs dir, sin estimación previa"
-                print(f"  ...{seen} páginas vistas ({progress}) -- "
-                      f"{elapsed_min:.1f} min transcurridos, ~{rate:.0f} páginas/min", flush=True)
+    try:
+        async with AsyncWebCrawler() as crawler:
+            stream = await crawler.arun(url=SEED_URL, config=config)
+            async for result in stream:
+                seen += 1
+                if seen % PROGRESS_EVERY == 0:
+                    elapsed_min = (time.monotonic() - start_time) / 60
+                    rate = seen / elapsed_min if elapsed_min > 0 else 0
+                    if expected_total:
+                        pct = min(100, round(100 * seen / expected_total))
+                        progress = f"~{pct}% de la última corrida -- estimación, no exacto"
+                    else:
+                        progress = "primera corrida en este docs dir, sin estimación previa"
+                    print(
+                        f"  ...{seen} páginas vistas ({progress}) -- "
+                        f"{elapsed_min:.1f} min transcurridos, ~{rate:.0f} páginas/min",
+                        flush=True,
+                    )
 
-            url = normalize(result.url)
-
-            if not result.success:
-                stats.fetch_failed.append(url)
-                continue
-
-            stats.discovered_total += 1
-            classification = classify_url(url)
-            capability = classification["capability"]
-
-            if capability is None:
-                if not classification["known_out_of_scope"]:
-                    stats.unmatched.append(url)
-                continue
-
-            if classification["prune_reason"] is not None:
-                stats.pruned.append((url, classification["prune_reason"]))
-                continue
-
-            prefix = CAPABILITIES[capability]
-            slug = slugify(url, prefix)
-            markdown = result.markdown.raw_markdown
-
-            # Pure navigation/TOC pages (per classify_pages.py's heuristic)
-            # go to raw/_navigation/ instead of raw/{capability}/, so the
-            # docs a future consultation skill reads stays high-signal.
-            total_words, link_ratio = analyze_body(markdown)
-            is_navigation = classify_navigation(total_words, link_ratio) == "index"
-
-            content_path = RAW_DIR / capability / f"{slug}.md"
-            navigation_path = NAVIGATION_DIR / capability / f"{slug}.md"
-            out_path = navigation_path if is_navigation else content_path
-            other_path = content_path if is_navigation else navigation_path
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-
-            new_content = build_frontmatter(url, capability, markdown) + markdown
-            old_hash_line = read_existing_hash(out_path) or read_existing_hash(other_path)
-            existed_before = out_path.exists() or other_path.exists()
-            out_path.write_text(new_content, encoding="utf-8")
-            if other_path.exists():
-                other_path.unlink()  # reclassified since last run -- drop the stale copy
-            new_hash_line = read_existing_hash(out_path)
-
-            if not existed_before:
-                status = "new"
-            elif old_hash_line == new_hash_line:
-                status = "unchanged"
-            else:
-                status = "updated"
-            stats.outcomes[capability].append(PageOutcome(url, capability, slug, status, is_navigation))
+                try:
+                    process_crawl_result(result, stats)
+                except Exception as exc:  # noqa: BLE001 - one malformed page must not kill the crawl
+                    url = normalize(getattr(result, "url", "unknown:"))
+                    print(f"  ERROR procesando {url}: {exc}", file=sys.stderr)
+                    stats.fetch_failed.append(url)
+    except Exception as exc:  # noqa: BLE001 - report partial runs instead of losing them
+        stats.crawl_errors.append(str(exc))
+        print(f"\nERROR: crawl interrumpido antes de terminar: {exc}", file=sys.stderr)
 
     return stats
 
@@ -279,7 +313,7 @@ def is_confirmed_gone(url: str, timeout: float = 10.0) -> bool:
     live but just unlinked from wherever our crawl reached this run."""
     request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout):
             return False  # any successful response means it's still there
     except urllib.error.HTTPError as exc:
         return exc.code in (404, 410)
@@ -297,6 +331,13 @@ def quarantine_orphans(stats: RunStats) -> dict:
     quarantined: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
     still_alive: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
     skipped_capabilities: list[str] = []
+
+    if stats.crawl_errors:
+        return {
+            "quarantined": quarantined,
+            "still_alive": still_alive,
+            "skipped_capabilities": list(CAPABILITIES),
+        }
 
     for capability in CAPABILITIES:
         content_dir = RAW_DIR / capability
@@ -343,19 +384,15 @@ def write_filtered_reports(stats: RunStats) -> None:
 
     for capability in CAPABILITIES:
         urls = sorted(o.url for o in stats.outcomes[capability])
-        (FILTERED_DIR / f"{capability}_urls.txt").write_text("\n".join(urls) + "\n", encoding="utf-8")
+        atomic_write_text(FILTERED_DIR / f"{capability}_urls.txt", "\n".join(urls) + "\n")
 
     pruned_lines = [f"{url}\t# {reason}" for url, reason in sorted(stats.pruned)]
-    (FILTERED_DIR / "self-hosted_pruned.txt").write_text(
-        "\n".join(pruned_lines) + ("\n" if pruned_lines else ""), encoding="utf-8",
-    )
+    atomic_write_text(FILTERED_DIR / "self-hosted_pruned.txt", "\n".join(pruned_lines) + ("\n" if pruned_lines else ""))
 
     navigation_urls = sorted(
         o.url for outcomes in stats.outcomes.values() for o in outcomes if o.is_navigation
     )
-    (FILTERED_DIR / "navigation_urls.txt").write_text(
-        "\n".join(navigation_urls) + ("\n" if navigation_urls else ""), encoding="utf-8",
-    )
+    atomic_write_text(FILTERED_DIR / "navigation_urls.txt", "\n".join(navigation_urls) + ("\n" if navigation_urls else ""))
 
     prune_counts = {label: 0 for label, _ in SELF_HOSTED_PRUNE_RULES}
     for _, reason in stats.pruned:
@@ -373,13 +410,20 @@ def write_filtered_reports(stats: RunStats) -> None:
         "total_navigation_pages": len(navigation_urls),
         "discovered_total": stats.discovered_total,
         "fetch_failed_count": len(stats.fetch_failed),
+        "crawl_error_count": len(stats.crawl_errors),
+        "crawl_errors": stats.crawl_errors,
         "unmatched_count": len(stats.unmatched),
     }
-    (FILTERED_DIR / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(FILTERED_DIR / "summary.json", json.dumps(summary, indent=2) + "\n")
 
 
 def print_summary(stats: RunStats, quarantine_result: dict) -> None:
     print(f"\nTotal descubierto bajo /w/dxp: {stats.discovered_total}")
+    if stats.crawl_errors:
+        print(f"Errores fatales de crawl: {len(stats.crawl_errors)}")
+        for error in stats.crawl_errors:
+            print(f"  - {error}")
+
     if stats.fetch_failed:
         print(f"Fallos de fetch: {len(stats.fetch_failed)}")
         for url in stats.fetch_failed:
@@ -447,7 +491,7 @@ def main() -> None:
     write_filtered_reports(stats)
     print_summary(stats, quarantine_result)
 
-    if stats.fetch_failed:
+    if stats.fetch_failed or stats.crawl_errors:
         sys.exit(1)
 
 
