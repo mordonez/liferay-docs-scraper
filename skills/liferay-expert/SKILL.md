@@ -44,14 +44,22 @@ Call this `$DOCS_DIR` below. It should contain Markdown files under
 
 ## Step 3: search and answer
 
+Use a discover -> read -> answer flow:
+
 1. Pick the likely capability folder(s) from the map below.
-2. `grep -ril "<keyword>" $DOCS_DIR/raw/<capability>/*.md` — try 2-3 keyword
-   variants. Ignore any hits under `raw/_navigation/` (TOC-only, no unique
-   content).
-3. Read the matching file(s) in full with the Read tool.
-4. Answer grounded in what you read. Always cite the source: the file's
+2. If `$DOCS_DIR/reports/filtered/search_index.jsonl` exists, search it first:
+   ```
+   grep -i "<keyword>" $DOCS_DIR/reports/filtered/search_index.jsonl
+   ```
+   Try 2-3 keyword variants. Prefer entries with `"source_type":"official"`.
+   The `path` field points to the Markdown file to read.
+3. If the index is missing or thin, fall back to direct Markdown search:
+   `grep -ril "<keyword>" $DOCS_DIR/raw/<capability>/*.md`. Ignore any hits
+   under `raw/_navigation/` (TOC-only, no unique content).
+4. Read the best matching file(s) in full with the Read tool.
+5. Answer grounded in what you read. Always cite the source: the file's
    frontmatter `url:` field.
-5. **Official docs came up empty or thin, especially for a "how do I..." or
+6. **Official docs came up empty or thin, especially for a "how do I..." or
    "getting this error..." question?** Try the community content next:
    `grep -ril "<keyword>" $DOCS_DIR/raw/community-howto/<capability>/*.md
    $DOCS_DIR/raw/community-troubleshooting/<capability>/*.md` (also check
@@ -60,7 +68,7 @@ Call this `$DOCS_DIR` below. It should contain Markdown files under
    isn't obvious, community-troubleshooting articles are usually titled
    after the exact error message, so grepping the error text directly
    works well.
-6. Nothing matches anywhere? Say so — try another capability or keyword
+7. Nothing matches anywhere? Say so — try another capability or keyword
    before giving up, don't guess at an answer.
 
 **Citing community content:** always say explicitly that it's community-
@@ -110,6 +118,12 @@ than guessing one and stopping.
   current it is.
 - `reports/filtered/{capability}_urls.txt` lists every in-scope URL per
   capability if you need to browse available topics without grepping content.
+- `reports/filtered/search_index.jsonl` is a generated local retrieval index
+  for titles, headings, source type, capability, file path, source URL, and
+  freshness. Use it as the first shortlist when it exists.
+- `reports/filtered/anomalies.jsonl` is an informational scrape-quality report
+  (short bodies, missing titles, suspicious size changes, known error markers).
+  If you cite a page listed there, mention the scrape may need checking.
 - `raw/community-howto/` and `raw/community-troubleshooting/` are a separate,
   much larger (~4,800 pages) set of community-contributed recipes and
   troubleshooting articles from learn.liferay.com/kb-article/*, fetched by

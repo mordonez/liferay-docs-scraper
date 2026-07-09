@@ -35,6 +35,18 @@ def test_build_frontmatter_quotes_tag_values():
     assert 'feature: "Indexing: Blueprints"' in frontmatter
 
 
+def test_extract_article_links_keeps_absolute_kb_article_urls_only():
+    html = """
+    <a href="https://learn.liferay.com/kb-article/how-to-fix-search"></a>
+    <a href="/kb-article/relative"></a>
+    <a href="https://example.com/kb-article/nope"></a>
+    """
+
+    assert community.extract_article_links(html) == {
+        "https://learn.liferay.com/kb-article/how-to-fix-search"
+    }
+
+
 def test_discover_article_urls_raises_when_listing_fetch_fails():
     class FakeCrawler:
         async def arun(self, url, config):
@@ -61,6 +73,30 @@ def test_discover_article_urls_stops_when_no_new_links():
     ]
 
 
+def test_discover_article_urls_honors_limit_without_paging_further():
+    html = """
+    <html><body>
+      <a href="https://learn.liferay.com/kb-article/a"></a>
+      <a href="https://learn.liferay.com/kb-article/b"></a>
+    </body></html>
+    """
+
+    class FakeCrawler:
+        def __init__(self):
+            self.calls = 0
+
+        async def arun(self, url, config):
+            self.calls += 1
+            return SimpleNamespace(success=True, html=html)
+
+    crawler = FakeCrawler()
+
+    assert asyncio.run(community.discover_article_urls(crawler, "33317328", limit=1)) == [
+        "https://learn.liferay.com/kb-article/a"
+    ]
+    assert crawler.calls == 1
+
+
 def test_run_resource_type_records_stream_crash(monkeypatch, tmp_path):
     configure_community_dirs(monkeypatch, tmp_path)
 
@@ -68,7 +104,7 @@ def test_run_resource_type_records_stream_crash(monkeypatch, tmp_path):
         async def arun_many(self, urls, config):
             raise RuntimeError("browser crashed")
 
-    async def fake_discover(crawler, resource_type_id):
+    async def fake_discover(crawler, resource_type_id, limit=None):
         return ["https://learn.liferay.com/kb-article/a"]
 
     monkeypatch.setattr(community, "discover_article_urls", fake_discover)

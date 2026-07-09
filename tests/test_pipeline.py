@@ -84,8 +84,19 @@ def test_quarantine_is_skipped_after_fatal_crawl_error(monkeypatch, tmp_path):
     result = pipeline.quarantine_orphans(stats)
 
     assert old_path.exists()
-    assert result["quarantined"]["search"] == []
-    assert "search" in result["skipped_capabilities"]
+    assert result.quarantined["search"] == []
+    assert "search" in result.skipped_capabilities
+
+
+def test_quarantine_result_flattens_direct_refresh_urls():
+    result = pipeline.QuarantineResult()
+    result.direct_refresh_candidates["search"]["a"] = "https://learn.liferay.com/w/dxp/search/a"
+    result.direct_refresh_candidates["sites"]["b"] = "https://learn.liferay.com/w/dxp/sites/b"
+
+    assert result.direct_refresh_urls() == [
+        "https://learn.liferay.com/w/dxp/search/a",
+        "https://learn.liferay.com/w/dxp/sites/b",
+    ]
 
 
 def test_write_filtered_reports_includes_crawl_errors(monkeypatch, tmp_path):
@@ -106,11 +117,7 @@ def test_main_exits_nonzero_on_crawl_error(monkeypatch, tmp_path):
         return pipeline.RunStats(crawl_errors=["boom"])
 
     monkeypatch.setattr(pipeline, "run_crawl", fake_run_crawl)
-    monkeypatch.setattr(pipeline, "quarantine_orphans", lambda stats: {
-        "quarantined": {name: [] for name in pipeline.CAPABILITIES},
-        "still_alive": {name: [] for name in pipeline.CAPABILITIES},
-        "skipped_capabilities": [],
-    })
+    monkeypatch.setattr(pipeline, "quarantine_orphans", lambda stats: pipeline.QuarantineResult())
     monkeypatch.setattr(pipeline, "write_filtered_reports", lambda stats: None)
     monkeypatch.setattr(pipeline, "print_summary", lambda stats, quarantine_result: None)
     monkeypatch.setattr("sys.argv", ["liferay-docs-scraper"])

@@ -70,6 +70,14 @@ from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
 from .filter_urls import atomic_write_text, quote_frontmatter_value, resolve_docs_dir, safe_filename_stem
+from .index import (
+    ANOMALIES_NAME,
+    append_anomalies,
+    build_search_index,
+    detect_anomalies,
+    ensure_anomalies_report,
+    read_body_snapshot,
+)
 
 SEARCH_URL = "https://learn.liferay.com/learn-search"
 # key -> (resource-type facet id, source_type written to frontmatter)
@@ -141,7 +149,9 @@ class RunStats:
     outcomes: list[ArticleOutcome] = field(default_factory=list)
 
 
-async def discover_article_urls(crawler: AsyncWebCrawler, resource_type_id: str) -> list[str]:
+async def discover_article_urls(
+    crawler: AsyncWebCrawler, resource_type_id: str, limit: int | None = None,
+) -> list[str]:
     """Page through /learn-search?resource-type=X, PAGE_SIZE entries at a
     time, until a page returns no new kb-article links.
 
@@ -168,16 +178,23 @@ async def discover_article_urls(crawler: AsyncWebCrawler, resource_type_id: str)
         result = await crawler.arun(url=url, config=listing_config)
         if not result.success:
             raise RuntimeError(f"falló la página de búsqueda {page}: {url}")
-        soup = BeautifulSoup(result.html, "html.parser")
-        page_urls = {
-            a["href"] for a in soup.find_all("a", href=True)
-            if KB_ARTICLE_URL_PATTERN.match(a["href"])
-        }
+        page_urls = extract_article_links(result.html)
         if not page_urls or page_urls <= urls:
             break
         urls |= page_urls
+        if limit is not None and len(urls) >= limit:
+            break
         page += 1
-    return sorted(urls)
+    discovered = sorted(urls)
+    return discovered[:limit] if limit is not None else discovered
+
+
+def extract_article_links(html: str) -> set[str]:
+    soup = BeautifulSoup(html, "html.parser")
+    return {
+        a["href"] for a in soup.find_all("a", href=True)
+        if KB_ARTICLE_URL_PATTERN.match(a["href"])
+    }
 
 
 def safe_slug(url: str) -> str:
@@ -266,9 +283,7 @@ async def run_resource_type(
     stats = RunStats()
     print(f"\n=== {key} ({source_type}) ===")
     print("Descubriendo artículos...")
-    urls = await discover_article_urls(crawler, resource_type_id)
-    if limit is not None:
-        urls = urls[:limit]
+    urls = await discover_article_urls(crawler, resource_type_id, limit=limit)
     stats.discovered_total = len(urls)
     print(f"  {len(urls)} URLs encontradas")
 
@@ -316,9 +331,21 @@ async def run_resource_type(
                 body = f"# {parsed['title']}\n\n{parsed['body']}"
                 new_content = build_frontmatter(result.url, source_type, capability, parsed["tags"], body) + body
 
+                previous_snapshot = read_body_snapshot(out_path)
                 old_hash = read_existing_hash(out_path)
                 existed_before = out_path.exists()
                 atomic_write_text(out_path, new_content)
+                append_anomalies(
+                    FILTERED_DIR / ANOMALIES_NAME,
+                    detect_anomalies(
+                        path=out_path,
+                        url=result.url,
+                        source_type=source_type,
+                        capability=capability or "_uncategorized",
+                        body=body,
+                        previous=previous_snapshot,
+                    ),
+                )
                 new_hash = read_existing_hash(out_path)
                 status = "new" if not existed_before else ("unchanged" if old_hash == new_hash else "updated")
                 stats.outcomes.append(ArticleOutcome(result.url, capability, slug, status))
@@ -351,6 +378,7 @@ def write_report(key: str, stats: RunStats) -> None:
         "crawl_errors": stats.crawl_errors,
         "by_capability": counts_by_capability(stats),
         "unmapped_capability_tags": stats.unmapped_capability_tags,
+        "search_index_entries": build_search_index(RAW_DIR, FILTERED_DIR),
     }, indent=2) + "\n")
 
 
@@ -374,6 +402,7 @@ def print_summary(key: str, stats: RunStats) -> None:
 
 async def run_all(resource_type_filter: str | None, limit: int | None) -> bool:
     any_failures = False
+    ensure_anomalies_report(FILTERED_DIR)
     async with AsyncWebCrawler() as crawler:
         for key, (resource_type_id, source_type) in RESOURCE_TYPES.items():
             if resource_type_filter and key != resource_type_filter:

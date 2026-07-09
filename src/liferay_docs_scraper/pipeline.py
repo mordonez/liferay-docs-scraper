@@ -82,6 +82,15 @@ from .filter_urls import (
     resolve_docs_dir,
     slugify,
 )
+from .index import (
+    ANOMALIES_NAME,
+    OFFICIAL_SOURCE_TYPE,
+    append_anomalies,
+    build_search_index,
+    detect_anomalies,
+    read_body_snapshot,
+    reset_anomalies_report,
+)
 
 # crawl4ai's BFS strategy logs a WARNING (via the stdlib logging module, so
 # it ignores our own verbose=False) for every discovered link that isn't a
@@ -150,6 +159,19 @@ class RunStats:
     unmatched: list[str] = field(default_factory=list)
     pruned: list[tuple] = field(default_factory=list)
     outcomes: dict = field(default_factory=lambda: {name: [] for name in CAPABILITIES})
+    direct_refreshed: list[str] = field(default_factory=list)
+    coverage_gap_count: int = 0
+
+
+@dataclass
+class QuarantineResult:
+    quarantined: dict[str, list[str]] = field(default_factory=lambda: {name: [] for name in CAPABILITIES})
+    still_alive: dict[str, list[str]] = field(default_factory=lambda: {name: [] for name in CAPABILITIES})
+    direct_refresh_candidates: dict[str, dict[str, str]] = field(default_factory=lambda: {name: {} for name in CAPABILITIES})
+    skipped_capabilities: list[str] = field(default_factory=list)
+
+    def direct_refresh_urls(self) -> list[str]:
+        return sorted(url for capability_urls in self.direct_refresh_candidates.values() for url in capability_urls.values())
 
 
 def read_existing_hash(path: Path) -> str | None:
@@ -241,9 +263,21 @@ def process_crawl_result(result, stats: RunStats) -> None:
     other_path = content_path if is_navigation else navigation_path
 
     new_content = build_frontmatter(url, capability, markdown) + markdown
+    previous_snapshot = read_body_snapshot(out_path) or read_body_snapshot(other_path)
     old_hash_line = read_existing_hash(out_path) or read_existing_hash(other_path)
     existed_before = out_path.exists() or other_path.exists()
     atomic_write_text(out_path, new_content)
+    append_anomalies(
+        FILTERED_DIR / ANOMALIES_NAME,
+        detect_anomalies(
+            path=out_path,
+            url=url,
+            source_type=OFFICIAL_SOURCE_TYPE,
+            capability=capability,
+            body=markdown,
+            previous=previous_snapshot,
+        ),
+    )
     if other_path.exists():
         other_path.unlink()  # reclassified since last run -- drop the stale copy
     new_hash_line = read_existing_hash(out_path)
@@ -321,23 +355,18 @@ def is_confirmed_gone(url: str, timeout: float = 10.0) -> bool:
         return False
 
 
-def quarantine_orphans(stats: RunStats) -> dict:
+def quarantine_orphans(stats: RunStats) -> QuarantineResult:
     """Move raw/{capability}/*.md and raw/_navigation/{capability}/*.md files
     that this run didn't touch to raw/_removed/{capability}/ -- but only
     after directly confirming the URL is actually gone (see
     is_confirmed_gone). Orphans that turn out to still be live, or that we
     couldn't check, are left in place and reported separately so a human
     can look into the crawl's coverage gap."""
-    quarantined: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
-    still_alive: dict[str, list[str]] = {name: [] for name in CAPABILITIES}
-    skipped_capabilities: list[str] = []
+    result = QuarantineResult()
 
     if stats.crawl_errors:
-        return {
-            "quarantined": quarantined,
-            "still_alive": still_alive,
-            "skipped_capabilities": list(CAPABILITIES),
-        }
+        result.skipped_capabilities = list(CAPABILITIES)
+        return result
 
     for capability in CAPABILITIES:
         content_dir = RAW_DIR / capability
@@ -354,7 +383,7 @@ def quarantine_orphans(stats: RunStats) -> dict:
         previous_count = len(on_disk_paths)
         new_count = len(current_slugs)
         if previous_count > 0 and new_count < QUARANTINE_SAFETY_RATIO * previous_count:
-            skipped_capabilities.append(capability)
+            result.skipped_capabilities.append(capability)
             continue
 
         if not orphans:
@@ -367,16 +396,51 @@ def quarantine_orphans(stats: RunStats) -> dict:
             src = on_disk_paths[slug]
             url = read_url_from_file(src)
             if url is None or not is_confirmed_gone(url):
-                still_alive[capability].append(slug)
+                result.still_alive[capability].append(slug)
+                if url is not None:
+                    result.direct_refresh_candidates[capability][slug] = url
                 continue
 
             dst = removed_dir / f"{slug}.md"
             shutil.move(str(src), str(dst))
-            quarantined[capability].append(slug)
+            result.quarantined[capability].append(slug)
             with REMOVED_LOG.open("a", encoding="utf-8") as log:
                 log.write(json.dumps({"capability": capability, "slug": slug, "url": url, "removed_at": removed_at}) + "\n")
 
-    return {"quarantined": quarantined, "still_alive": still_alive, "skipped_capabilities": skipped_capabilities}
+    return result
+
+
+async def refresh_still_alive_pages(quarantine_result: QuarantineResult, stats: RunStats) -> None:
+    urls = quarantine_result.direct_refresh_urls()
+    if not urls:
+        return
+
+    stats.coverage_gap_count = len(urls)
+    print(f"\nRefrescando directamente URLs vivas no redescubiertas por BFS: {len(urls)}")
+    config = CrawlerRunConfig(
+        css_selector=CONTENT_SELECTOR,
+        wait_for=f"css:{CONTENT_SELECTOR}",
+        page_timeout=DEFAULT_PAGE_TIMEOUT_MS,
+        semaphore_count=DEFAULT_SEMAPHORE_COUNT,
+        max_retries=DEFAULT_MAX_RETRIES,
+        mean_delay=DEFAULT_MEAN_DELAY_SECONDS,
+        max_range=DEFAULT_MAX_DELAY_RANGE_SECONDS,
+        cache_mode=CacheMode.BYPASS,
+        stream=True,
+        verbose=False,
+    )
+    try:
+        async with AsyncWebCrawler() as crawler:
+            stream = await crawler.arun_many(urls=urls, config=config)
+            async for result in stream:
+                url = normalize(getattr(result, "url", "unknown:"))
+                before_failures = len(stats.fetch_failed)
+                process_crawl_result(result, stats)
+                if len(stats.fetch_failed) == before_failures:
+                    stats.direct_refreshed.append(url)
+    except Exception as exc:  # noqa: BLE001 - preserve the main crawl results
+        stats.crawl_errors.append(f"direct refresh failed: {exc}")
+        print(f"\nERROR: refresh directo interrumpido: {exc}", file=sys.stderr)
 
 
 def write_filtered_reports(stats: RunStats) -> None:
@@ -409,15 +473,18 @@ def write_filtered_reports(stats: RunStats) -> None:
         "total_in_scope": sum(len(stats.outcomes[name]) for name in CAPABILITIES),
         "total_navigation_pages": len(navigation_urls),
         "discovered_total": stats.discovered_total,
+        "coverage_gap_count": stats.coverage_gap_count,
+        "direct_refreshed_count": len(stats.direct_refreshed),
         "fetch_failed_count": len(stats.fetch_failed),
         "crawl_error_count": len(stats.crawl_errors),
         "crawl_errors": stats.crawl_errors,
         "unmatched_count": len(stats.unmatched),
+        "search_index_entries": build_search_index(RAW_DIR, FILTERED_DIR),
     }
     atomic_write_text(FILTERED_DIR / "summary.json", json.dumps(summary, indent=2) + "\n")
 
 
-def print_summary(stats: RunStats, quarantine_result: dict) -> None:
+def print_summary(stats: RunStats, quarantine_result: QuarantineResult) -> None:
     print(f"\nTotal descubierto bajo /w/dxp: {stats.discovered_total}")
     if stats.crawl_errors:
         print(f"Errores fatales de crawl: {len(stats.crawl_errors)}")
@@ -446,7 +513,7 @@ def print_summary(stats: RunStats, quarantine_result: dict) -> None:
 
     print(f"\nSelf-hosted podadas: {len(stats.pruned)}")
 
-    quarantined = quarantine_result["quarantined"]
+    quarantined = quarantine_result.quarantined
     total_quarantined = sum(len(v) for v in quarantined.values())
     print(f"\nEn cuarentena (URL verificada como caída, HTTP 404/410): {total_quarantined}")
     for capability, slugs in quarantined.items():
@@ -455,20 +522,23 @@ def print_summary(stats: RunStats, quarantine_result: dict) -> None:
             for slug in slugs:
                 print(f"    - {slug}")
 
-    still_alive = quarantine_result["still_alive"]
+    still_alive = quarantine_result.still_alive
     total_still_alive = sum(len(v) for v in still_alive.values())
     if total_still_alive:
-        print(f"\nNo redescubiertas por el BFS pero SIGUEN VIVAS (no se tocaron, revisar cobertura del crawl): {total_still_alive}")
+        print(f"\nNo redescubiertas por el BFS pero SIGUEN VIVAS: {total_still_alive}")
         for capability, slugs in still_alive.items():
             if slugs:
                 print(f"  {capability}: {len(slugs)}")
                 for slug in slugs:
                     print(f"    - {slug}")
 
-    if quarantine_result["skipped_capabilities"]:
+    if stats.direct_refreshed:
+        print(f"\nRefrescadas directamente tras confirmar que seguían vivas: {len(stats.direct_refreshed)}")
+
+    if quarantine_result.skipped_capabilities:
         print("\nADVERTENCIA: cuarentena omitida por caída sospechosa de conteo "
               "(posible crawl incompleto), revisar a mano:")
-        for capability in quarantine_result["skipped_capabilities"]:
+        for capability in quarantine_result.skipped_capabilities:
             print(f"  - {capability}")
 
     if stats.unmatched:
@@ -486,8 +556,10 @@ def main() -> None:
     expected_total = estimate_total_pages()
     size_hint = f"~{expected_total} páginas la última vez" if expected_total else "~30-40 min habitualmente"
     print(f"Arrancando el crawl ({size_hint}) -- progreso cada {PROGRESS_EVERY} páginas...", flush=True)
+    reset_anomalies_report(FILTERED_DIR)
     stats = asyncio.run(run_crawl(args.max_depth, args.max_pages))
     quarantine_result = quarantine_orphans(stats)
+    asyncio.run(refresh_still_alive_pages(quarantine_result, stats))
     write_filtered_reports(stats)
     print_summary(stats, quarantine_result)
 
