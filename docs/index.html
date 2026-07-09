@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="liferay-docs-scraper installs a local liferay-expert skill for cited AI answers from your own files."
+    >
+    <title>liferay-docs-scraper</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/site.css">
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="topbar" aria-label="Primary navigation">
+        <a class="brand" href="https://github.com/mordonez/liferay-docs-scraper">liferay-docs-scraper</a>
+        <div class="nav-links">
+          <a href="https://pypi.org/project/liferay-docs-scraper/">PyPI</a>
+          <a href="https://github.com/mordonez/liferay-docs-scraper">GitHub</a>
+        </div>
+      </nav>
+      <section class="hero-copy" aria-labelledby="page-title">
+        <p class="eyebrow">Demoed in Codex</p>
+        <h1 id="page-title">A local skill for cited Liferay answers.</h1>
+        <p>
+          Install `liferay-expert`, point it at your local files, and get
+          answers that cite their source URLs.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#demo">Watch demo</a>
+          <a class="button secondary" href="assets/liferay-doc-demo.mp4">Download demo</a>
+        </div>
+      </section>
+    </header>
+
+    <main>
+      <section id="demo" class="demo" aria-label="Codex demo video">
+        <video
+          class="demo-video"
+          autoplay
+          muted
+          loop
+          playsinline
+          controls
+          poster="assets/liferay-doc-demo.gif"
+        >
+          <source src="assets/liferay-doc-demo.mp4" type="video/mp4">
+        </video>
+      </section>
+
+      <section class="section summary" aria-labelledby="summary-title">
+        <div>
+          <p class="eyebrow">Skill-first workflow</p>
+          <h2 id="summary-title">Ask better questions against local sources.</h2>
+        </div>
+        <div class="summary-grid">
+          <article>
+            <h3>Adds a skill</h3>
+            <p>
+              Installs `liferay-expert` into your project so your assistant has
+              a focused Liferay research workflow.
+            </p>
+          </article>
+          <article>
+            <h3>Uses local files</h3>
+            <p>
+              Reads a Markdown corpus from your machine instead of relying on
+              model memory alone.
+            </p>
+          </article>
+          <article>
+            <h3>Keeps answers cited</h3>
+            <p>
+              Uses source metadata so answers can point back to the URLs behind
+              the local files.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="install" class="section install" aria-labelledby="install-title">
+        <div>
+          <p class="eyebrow">Quickstart</p>
+          <h2 id="install-title">Install the skill and verify the corpus.</h2>
+        </div>
+        <pre><code>uvx --from crawl4ai crawl4ai-setup
+uvx liferay-docs-scraper
+npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
+uvx --from liferay-docs-scraper liferay-docs-scraper-doctor</code></pre>
+      </section>
+
+      <section class="section details" aria-labelledby="details-title">
+        <div>
+          <p class="eyebrow">Why it matters</p>
+          <h2 id="details-title">Built for technical answers that age well.</h2>
+        </div>
+        <ul>
+          <li>No third-party documentation content bundled in the package.</li>
+          <li>No vector database or embedding setup required.</li>
+          <li>One shared docs directory for every local project.</li>
+          <li>Freshness checks and reports through the doctor command.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>MIT licensed.</span>
+      <span>Unofficial project, not affiliated with Liferay.</span>
+      <a href="https://github.com/mordonez/liferay-docs-scraper">View on GitHub</a>
+      <a href="https://pypi.org/project/liferay-docs-scraper/">Install from PyPI</a>
+    </footer>
+  </body>
+</html>

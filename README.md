@@ -12,6 +12,7 @@ from model memory. No bundled Liferay content, no embeddings, no vector DB.
 
 [Download the MP4 demo](docs/assets/liferay-doc-demo.mp4)
 
+[Project page](https://mordonez.github.io/liferay-docs-scraper/) ·
 [PyPI package](https://pypi.org/project/liferay-docs-scraper/) · Python
 3.10-3.13 · [MIT license](LICENSE)
 
