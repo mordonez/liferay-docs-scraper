@@ -1,6 +1,6 @@
 [project]
 name = "liferay-docs-scraper"
-version = "0.6.1"
+version = "0.6.2"
 description = "Scrape learn.liferay.com/w/dxp into local Markdown docs (raw/{capability}/*.md) for the liferay-expert Claude Code skill."
 readme = "README.md"
 license = "MIT"
