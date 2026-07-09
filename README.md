@@ -313,6 +313,12 @@ uv run --with pytest python -m pytest
 uv build
 ```
 
+Run `uv sync --group dev` once before local development so the project and dev
+tools are installed into uv's project environment. The pytest command uses
+`python -m pytest` with `--with pytest` because older or unsynced uv
+environments can fail to find the `pytest` console script even when Python can
+run the module.
+
 CI runs lint, tests, and package build on Python 3.10, 3.11, 3.12, and 3.13.
 It does not run a real scrape. Release publishing is documented in
 [`docs/release.md`](docs/release.md).
