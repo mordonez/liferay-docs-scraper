@@ -8,6 +8,10 @@ The goal is simple: when you ask Claude Code about Liferay DXP, it should read
 the current docs you fetched locally, cite the source URL, and avoid guessing
 from model memory. No bundled Liferay content, no embeddings, no vector DB.
 
+![Demo of liferay-docs-scraper in Codex](docs/assets/liferay-doc-demo.gif)
+
+[Download the MP4 demo](docs/assets/liferay-doc-demo.mp4)
+
 [PyPI package](https://pypi.org/project/liferay-docs-scraper/) · Python
 3.10-3.13 · [MIT license](LICENSE)
 
