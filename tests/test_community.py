@@ -52,7 +52,7 @@ def test_discover_article_urls_raises_when_listing_fetch_fails():
         async def arun(self, url, config):
             return SimpleNamespace(success=False)
 
-    with pytest.raises(RuntimeError, match="falló la página de búsqueda"):
+    with pytest.raises(RuntimeError, match="search listing page .* failed"):
         asyncio.run(community.discover_article_urls(FakeCrawler(), "33317328"))
 
 

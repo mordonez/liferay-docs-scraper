@@ -28,14 +28,14 @@ def test_safe_filename_stem_handles_windows_invalid_chars_reserved_names_and_len
     assert filter_urls.safe_filename_stem("CON") == "_CON"
     assert filter_urls.safe_filename_stem('<>:"\\|?*') == "--------"
 
-    stem = filter_urls.safe_filename_stem("á" * 200)
+    stem = filter_urls.safe_filename_stem("界" * 200)
 
     assert len(stem.encode("utf-8")) <= filter_urls.MAX_FILENAME_STEM_BYTES
-    assert stem == filter_urls.safe_filename_stem("á" * 200)
+    assert stem == filter_urls.safe_filename_stem("界" * 200)
 
 
 def test_slugify_sanitizes_and_caps_filename_stem():
-    url = "https://learn.liferay.com/w/dxp/search/" + ("á" * 200)
+    url = "https://learn.liferay.com/w/dxp/search/" + ("界" * 200)
 
     slug = filter_urls.slugify(url, "/w/dxp/search")
 

@@ -177,7 +177,7 @@ async def discover_article_urls(
         url = f"{SEARCH_URL}?q=&resource-type={resource_type_id}&delta={PAGE_SIZE}&start={page}"
         result = await crawler.arun(url=url, config=listing_config)
         if not result.success:
-            raise RuntimeError(f"falló la página de búsqueda {page}: {url}")
+            raise RuntimeError(f"search listing page {page} failed: {url}")
         page_urls = extract_article_links(result.html)
         if not page_urls or page_urls <= urls:
             break
@@ -282,10 +282,10 @@ async def run_resource_type(
 ) -> RunStats:
     stats = RunStats()
     print(f"\n=== {key} ({source_type}) ===")
-    print("Descubriendo artículos...")
+    print("Discovering articles...")
     urls = await discover_article_urls(crawler, resource_type_id, limit=limit)
     stats.discovered_total = len(urls)
-    print(f"  {len(urls)} URLs encontradas")
+    print(f"  {len(urls)} URLs found")
 
     fetch_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
@@ -350,11 +350,11 @@ async def run_resource_type(
                 status = "new" if not existed_before else ("unchanged" if old_hash == new_hash else "updated")
                 stats.outcomes.append(ArticleOutcome(result.url, capability, slug, status))
             except Exception as exc:  # noqa: BLE001 - any per-article failure is non-fatal here
-                print(f"  ERROR procesando {result.url}: {exc}")
+                print(f"  ERROR processing {result.url}: {exc}")
                 stats.fetch_failed.append(result.url)
     except Exception as exc:  # noqa: BLE001 - keep partial report data for long runs
         stats.crawl_errors.append(str(exc))
-        print(f"\nERROR: fetch interrumpido antes de terminar {key}: {exc}", file=sys.stderr)
+        print(f"\nERROR: fetch interrupted before finishing {key}: {exc}", file=sys.stderr)
 
     return stats
 
@@ -383,21 +383,21 @@ def write_report(key: str, stats: RunStats) -> None:
 
 
 def print_summary(key: str, stats: RunStats) -> None:
-    print(f"\n--- {key}: resumen ---")
-    print(f"Descubiertos: {stats.discovered_total}")
-    print(f"Escritos: {len(stats.outcomes)}")
+    print(f"\n--- {key}: summary ---")
+    print(f"Discovered: {stats.discovered_total}")
+    print(f"Written: {len(stats.outcomes)}")
     if stats.crawl_errors:
-        print(f"Errores fatales de crawl: {len(stats.crawl_errors)}")
+        print(f"Fatal crawl errors: {len(stats.crawl_errors)}")
         for error in stats.crawl_errors:
             print(f"  - {error}")
-    print(f"Fallos de fetch: {len(stats.fetch_failed)}")
-    print("Por capability:")
+    print(f"Fetch failures: {len(stats.fetch_failed)}")
+    print("By capability:")
     for capability, count in sorted(counts_by_capability(stats).items(), key=lambda x: -x[1]):
         print(f"  {capability}: {count}")
     if stats.unmapped_capability_tags:
-        print(f"\nTags de Capability sin mapear ({len(stats.unmapped_capability_tags)} valores distintos, fueron a _uncategorized):")
+        print(f"\nUnmapped Capability tags ({len(stats.unmapped_capability_tags)} distinct values, routed to _uncategorized):")
         for tag, count in sorted(stats.unmapped_capability_tags.items(), key=lambda x: -x[1]):
-            print(f'  "{tag}": {count} artículos')
+            print(f'  "{tag}": {count} articles')
 
 
 async def run_all(resource_type_filter: str | None, limit: int | None) -> bool:
@@ -413,7 +413,7 @@ async def run_all(resource_type_filter: str | None, limit: int | None) -> bool:
             try:
                 stats = await run_resource_type(crawler, key, resource_type_id, source_type, limit=limit)
             except Exception as exc:  # noqa: BLE001
-                print(f"\n{key} FALLÓ POR COMPLETO: {exc}")
+                print(f"\n{key} FAILED COMPLETELY: {exc}")
                 any_failures = True
                 continue
             write_report(source_type, stats)

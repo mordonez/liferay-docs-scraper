@@ -309,12 +309,12 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
                     rate = seen / elapsed_min if elapsed_min > 0 else 0
                     if expected_total:
                         pct = min(100, round(100 * seen / expected_total))
-                        progress = f"~{pct}% de la última corrida -- estimación, no exacto"
+                        progress = f"~{pct}% of the last run -- estimate, not exact"
                     else:
-                        progress = "primera corrida en este docs dir, sin estimación previa"
+                        progress = "first run in this docs dir, no previous estimate"
                     print(
-                        f"  ...{seen} páginas vistas ({progress}) -- "
-                        f"{elapsed_min:.1f} min transcurridos, ~{rate:.0f} páginas/min",
+                        f"  ...{seen} pages seen ({progress}) -- "
+                        f"{elapsed_min:.1f} min elapsed, ~{rate:.0f} pages/min",
                         flush=True,
                     )
 
@@ -322,11 +322,11 @@ async def run_crawl(max_depth: int, max_pages: int) -> RunStats:
                     process_crawl_result(result, stats)
                 except Exception as exc:  # noqa: BLE001 - one malformed page must not kill the crawl
                     url = normalize(getattr(result, "url", "unknown:"))
-                    print(f"  ERROR procesando {url}: {exc}", file=sys.stderr)
+                    print(f"  ERROR processing {url}: {exc}", file=sys.stderr)
                     stats.fetch_failed.append(url)
     except Exception as exc:  # noqa: BLE001 - report partial runs instead of losing them
         stats.crawl_errors.append(str(exc))
-        print(f"\nERROR: crawl interrumpido antes de terminar: {exc}", file=sys.stderr)
+        print(f"\nERROR: crawl interrupted before finishing: {exc}", file=sys.stderr)
 
     return stats
 
@@ -416,7 +416,7 @@ async def refresh_still_alive_pages(quarantine_result: QuarantineResult, stats: 
         return
 
     stats.coverage_gap_count = len(urls)
-    print(f"\nRefrescando directamente URLs vivas no redescubiertas por BFS: {len(urls)}")
+    print(f"\nDirectly refreshing live URLs not rediscovered by BFS: {len(urls)}")
     config = CrawlerRunConfig(
         css_selector=CONTENT_SELECTOR,
         wait_for=f"css:{CONTENT_SELECTOR}",
@@ -440,7 +440,7 @@ async def refresh_still_alive_pages(quarantine_result: QuarantineResult, stats: 
                     stats.direct_refreshed.append(url)
     except Exception as exc:  # noqa: BLE001 - preserve the main crawl results
         stats.crawl_errors.append(f"direct refresh failed: {exc}")
-        print(f"\nERROR: refresh directo interrumpido: {exc}", file=sys.stderr)
+        print(f"\nERROR: direct refresh interrupted: {exc}", file=sys.stderr)
 
 
 def write_filtered_reports(stats: RunStats) -> None:
@@ -485,18 +485,18 @@ def write_filtered_reports(stats: RunStats) -> None:
 
 
 def print_summary(stats: RunStats, quarantine_result: QuarantineResult) -> None:
-    print(f"\nTotal descubierto bajo /w/dxp: {stats.discovered_total}")
+    print(f"\nTotal discovered under /w/dxp: {stats.discovered_total}")
     if stats.crawl_errors:
-        print(f"Errores fatales de crawl: {len(stats.crawl_errors)}")
+        print(f"Fatal crawl errors: {len(stats.crawl_errors)}")
         for error in stats.crawl_errors:
             print(f"  - {error}")
 
     if stats.fetch_failed:
-        print(f"Fallos de fetch: {len(stats.fetch_failed)}")
+        print(f"Fetch failures: {len(stats.fetch_failed)}")
         for url in stats.fetch_failed:
             print(f"  - {url}")
 
-    print("\nPor capability (nuevas / actualizadas / sin cambios / navegación):")
+    print("\nBy capability (new / updated / unchanged / navigation):")
     total_in_scope = 0
     total_navigation = 0
     for capability, outcomes in stats.outcomes.items():
@@ -507,15 +507,15 @@ def print_summary(stats: RunStats, quarantine_result: QuarantineResult) -> None:
         total_in_scope += len(outcomes)
         total_navigation += navigation
         print(f"  {capability:12s}: {len(outcomes):4d} total  "
-              f"({new} nuevas, {updated} actualizadas, {unchanged} sin cambios, {navigation} navegación)")
-    print(f"\nTotal en scope: {total_in_scope} ({total_navigation} en raw/_navigation/, "
-          f"{total_in_scope - total_navigation} en raw/{{capability}}/)")
+              f"({new} new, {updated} updated, {unchanged} unchanged, {navigation} navigation)")
+    print(f"\nTotal in scope: {total_in_scope} ({total_navigation} in raw/_navigation/, "
+          f"{total_in_scope - total_navigation} in raw/{{capability}}/)")
 
-    print(f"\nSelf-hosted podadas: {len(stats.pruned)}")
+    print(f"\nSelf-hosted pruned: {len(stats.pruned)}")
 
     quarantined = quarantine_result.quarantined
     total_quarantined = sum(len(v) for v in quarantined.values())
-    print(f"\nEn cuarentena (URL verificada como caída, HTTP 404/410): {total_quarantined}")
+    print(f"\nQuarantined (URL verified as gone, HTTP 404/410): {total_quarantined}")
     for capability, slugs in quarantined.items():
         if slugs:
             print(f"  {capability}: {len(slugs)}")
@@ -525,7 +525,7 @@ def print_summary(stats: RunStats, quarantine_result: QuarantineResult) -> None:
     still_alive = quarantine_result.still_alive
     total_still_alive = sum(len(v) for v in still_alive.values())
     if total_still_alive:
-        print(f"\nNo redescubiertas por el BFS pero SIGUEN VIVAS: {total_still_alive}")
+        print(f"\nNot rediscovered by BFS but STILL LIVE: {total_still_alive}")
         for capability, slugs in still_alive.items():
             if slugs:
                 print(f"  {capability}: {len(slugs)}")
@@ -533,16 +533,16 @@ def print_summary(stats: RunStats, quarantine_result: QuarantineResult) -> None:
                     print(f"    - {slug}")
 
     if stats.direct_refreshed:
-        print(f"\nRefrescadas directamente tras confirmar que seguían vivas: {len(stats.direct_refreshed)}")
+        print(f"\nDirectly refreshed after confirming they were still live: {len(stats.direct_refreshed)}")
 
     if quarantine_result.skipped_capabilities:
-        print("\nADVERTENCIA: cuarentena omitida por caída sospechosa de conteo "
-              "(posible crawl incompleto), revisar a mano:")
+        print("\nWARNING: quarantine skipped due to a suspicious count drop "
+              "(possible incomplete crawl), review manually:")
         for capability in quarantine_result.skipped_capabilities:
             print(f"  - {capability}")
 
     if stats.unmatched:
-        print(f"\nURLs raras (ni en scope ni en descartadas conocidas), {len(stats.unmatched)}:")
+        print(f"\nUnexpected URLs (neither in scope nor known pruned URLs), {len(stats.unmatched)}:")
         for url in stats.unmatched:
             print(f"  {url}")
 
@@ -554,8 +554,8 @@ def main() -> None:
     args = parser.parse_args()
 
     expected_total = estimate_total_pages()
-    size_hint = f"~{expected_total} páginas la última vez" if expected_total else "~30-40 min habitualmente"
-    print(f"Arrancando el crawl ({size_hint}) -- progreso cada {PROGRESS_EVERY} páginas...", flush=True)
+    size_hint = f"~{expected_total} pages last time" if expected_total else "~30-40 min usually"
+    print(f"Starting crawl ({size_hint}) -- progress every {PROGRESS_EVERY} pages...", flush=True)
     reset_anomalies_report(FILTERED_DIR)
     stats = asyncio.run(run_crawl(args.max_depth, args.max_pages))
     quarantine_result = quarantine_orphans(stats)
