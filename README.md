@@ -25,9 +25,6 @@ It is built for team use:
 [PyPI package](https://pypi.org/project/liferay-context-builder/) · Python
 3.10-3.13 · [MIT license](LICENSE)
 
-> Previously published as `liferay-docs-scraper`. New installs and releases
-> should use `liferay-context-builder`.
-
 ## Quickstart
 
 From zero to source-backed Liferay answers in Claude Code:
