@@ -1,6 +1,6 @@
 [project]
 name = "liferay-context-builder"
-version = "0.7.0"
+version = "0.7.1"
 description = "Build a local, cited Liferay DXP context library for the liferay-expert Claude Code skill."
 readme = "README.md"
 license = "MIT"
