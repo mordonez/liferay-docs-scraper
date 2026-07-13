@@ -5,27 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="liferay-docs-scraper installs a local liferay-expert skill for cited AI answers from your own files."
+      content="liferay-context-builder gives Claude Code a local, source-backed Liferay DXP context library for cited answers."
     >
-    <title>liferay-docs-scraper</title>
+    <title>liferay-context-builder</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="assets/site.css">
   </head>
   <body>
     <header class="hero">
       <nav class="topbar" aria-label="Primary navigation">
-        <a class="brand" href="https://github.com/mordonez/liferay-docs-scraper">liferay-docs-scraper</a>
+        <a class="brand" href="https://github.com/mordonez/liferay-context-builder">liferay-context-builder</a>
         <div class="nav-links">
-          <a href="https://pypi.org/project/liferay-docs-scraper/">PyPI</a>
-          <a href="https://github.com/mordonez/liferay-docs-scraper">GitHub</a>
+          <a href="https://pypi.org/project/liferay-context-builder/">PyPI</a>
+          <a href="https://github.com/mordonez/liferay-context-builder">GitHub</a>
         </div>
       </nav>
       <section class="hero-copy" aria-labelledby="page-title">
         <p class="eyebrow">Demo</p>
-        <h1 id="page-title">A local skill for cited Liferay answers.</h1>
+        <h1 id="page-title">Local Liferay context for answers with sources.</h1>
         <p>
-          Install `liferay-expert`, point it at your local files, and get
-          answers that cite their source URLs.
+          Build a local Liferay DXP context library, install `liferay-expert`,
+          and help your team get answers that point back to the original docs.
         </p>
         <div class="actions">
           <a class="button primary" href="#demo">Watch demo</a>
@@ -51,29 +51,29 @@
 
       <section class="section summary" aria-labelledby="summary-title">
         <div>
-          <p class="eyebrow">Skill-first workflow</p>
-          <h2 id="summary-title">Ask better questions against local sources.</h2>
+          <p class="eyebrow">Team-ready workflow</p>
+          <h2 id="summary-title">Give your assistant the docs before the question.</h2>
         </div>
         <div class="summary-grid">
           <article>
             <h3>Adds a skill</h3>
             <p>
-              Installs `liferay-expert` into your project so your assistant has
-              a focused Liferay research workflow.
+              Installs `liferay-expert` into your project so Claude Code knows
+              how to search, read, and cite Liferay docs.
             </p>
           </article>
           <article>
             <h3>Uses local files</h3>
             <p>
-              Reads a Markdown corpus from your machine instead of relying on
-              model memory alone.
+              Builds one shared local context library for every project on your
+              machine.
             </p>
           </article>
           <article>
             <h3>Keeps answers cited</h3>
             <p>
-              Uses source metadata so answers can point back to the URLs behind
-              the local files.
+              Keeps source metadata with every page so answers can point back
+              to the original Liferay URLs.
             </p>
           </article>
         </div>
@@ -82,12 +82,12 @@
       <section id="install" class="section install" aria-labelledby="install-title">
         <div>
           <p class="eyebrow">Quickstart</p>
-          <h2 id="install-title">Install the skill and verify the corpus.</h2>
+          <h2 id="install-title">Build the context library and verify the skill.</h2>
         </div>
         <pre><code>uvx --from crawl4ai crawl4ai-setup
-uvx liferay-docs-scraper
-npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
-uvx --from liferay-docs-scraper liferay-docs-scraper-doctor</code></pre>
+uvx liferay-context-builder
+npx skills add mordonez/liferay-context-builder --skill liferay-expert -a claude-code
+uvx --from liferay-context-builder liferay-context-builder-doctor</code></pre>
       </section>
 
       <section class="section details" aria-labelledby="details-title">
@@ -107,8 +107,8 @@ uvx --from liferay-docs-scraper liferay-docs-scraper-doctor</code></pre>
     <footer class="footer">
       <span>MIT licensed.</span>
       <span>Unofficial project, not affiliated with Liferay.</span>
-      <a href="https://github.com/mordonez/liferay-docs-scraper">View on GitHub</a>
-      <a href="https://pypi.org/project/liferay-docs-scraper/">Install from PyPI</a>
+      <a href="https://github.com/mordonez/liferay-context-builder">View on GitHub</a>
+      <a href="https://pypi.org/project/liferay-context-builder/">Install from PyPI</a>
     </footer>
   </body>
 </html>

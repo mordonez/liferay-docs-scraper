@@ -50,8 +50,8 @@ the accepted trade-off).
 
 Setup and run (see README.md for the full explanation):
     uvx --from crawl4ai crawl4ai-setup   # one-time: installs Playwright browsers
-    uvx liferay-docs-scraper             # writes to resolve_docs_dir(), see above
-    uvx liferay-docs-scraper --max-pages 200   # smaller test run
+    uvx liferay-context-builder             # writes to resolve_docs_dir(), see above
+    uvx liferay-context-builder --max-pages 200   # smaller test run
 """
 
 import argparse

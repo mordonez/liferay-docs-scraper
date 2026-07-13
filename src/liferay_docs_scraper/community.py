@@ -50,8 +50,8 @@ larger and lower-authority:
     so CAPABILITY_TAG_MAP can be extended later without re-scraping.
 
 Usage:
-    uvx --from liferay-docs-scraper liferay-docs-scraper-community
-    uvx --from liferay-docs-scraper liferay-docs-scraper-community --resource-type howto
+    uvx --from liferay-context-builder liferay-context-builder-community
+    uvx --from liferay-context-builder liferay-context-builder-community --resource-type howto
 """
 
 import argparse

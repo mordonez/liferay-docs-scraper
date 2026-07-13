@@ -1,45 +1,54 @@
-# liferay-docs-scraper
+# liferay-context-builder
 
-Scrape `learn.liferay.com/w/dxp/*` into local Markdown and install a
-`liferay-expert` Claude Code skill that answers Liferay DXP questions from
-those files.
+Give Claude Code a local, source-backed Liferay DXP knowledge base it can
+actually read before answering.
 
-The goal is simple: when you ask Claude Code about Liferay DXP, it should read
-the current docs you fetched locally, cite the source URL, and avoid guessing
-from model memory. No bundled Liferay content, no embeddings, no vector DB.
+`liferay-context-builder` turns the public Liferay docs into a local context
+library and pairs it with the `liferay-expert` Claude Code skill. The result is
+simple: when someone on the team asks a Liferay question, the assistant can
+look up the relevant docs, cite the original URL, and avoid guessing from model
+memory.
 
-![Demo of liferay-docs-scraper in Codex](docs/assets/liferay-doc-demo.gif)
+It is built for team use:
+
+- Answers stay tied to official `learn.liferay.com` sources.
+- Every project can share the same local docs folder.
+- There is no bundled Liferay content, vector database, or embedding service to
+  manage.
+- A doctor command checks whether the docs and skill are ready.
+
+![Demo of liferay-context-builder in Codex](docs/assets/liferay-doc-demo.gif)
 
 [Download the MP4 demo](docs/assets/liferay-doc-demo.mp4)
 
-[Project page](https://mordonez.github.io/liferay-docs-scraper/) ·
-[PyPI package](https://pypi.org/project/liferay-docs-scraper/) · Python
+[Project page](https://mordonez.github.io/liferay-context-builder/) ·
+[PyPI package](https://pypi.org/project/liferay-context-builder/) · Python
 3.10-3.13 · [MIT license](LICENSE)
 
 ## Quickstart
 
-From zero to asking Liferay questions in Claude Code:
+From zero to source-backed Liferay answers in Claude Code:
 
 ```bash
 # 1. One-time browser setup for crawl4ai/Playwright
 uvx --from crawl4ai crawl4ai-setup
 
-# 2. Scrape the official Liferay DXP docs into ~/.liferay-docs
-uvx liferay-docs-scraper
+# 2. Build the local Liferay DXP context library in ~/.liferay-docs
+uvx liferay-context-builder
 
 # 3. Install the Claude Code skill in your current project
-npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
+npx skills add mordonez/liferay-context-builder --skill liferay-expert -a claude-code
 
-# 4. Verify docs freshness, reports, and skill installation
-uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+# 4. Verify docs freshness and skill installation
+uvx --from liferay-context-builder liferay-context-builder-doctor
 ```
 
 Then ask Claude Code something like:
 
 > How do I configure synonym sets in Liferay Search?
 
-The skill searches your local Markdown, reads the best matching pages, and
-cites the original `learn.liferay.com` URL from each file's frontmatter.
+The skill searches the local context library, reads the best matching pages,
+and cites the original `learn.liferay.com` URL.
 
 Keep `-a claude-code` in the install command. It avoids interactive installer
 edge cases where the skill can appear installed but not land in
@@ -52,7 +61,7 @@ edge cases where the skill can appear installed but not land in
 - Node/npm for `npx skills add`
 
 `crawl4ai` uses Playwright. Run the browser setup once per machine before the
-first scrape:
+first build:
 
 ```bash
 uvx --from crawl4ai crawl4ai-setup
@@ -70,20 +79,20 @@ flowchart LR
   E --> F[cited Liferay answers]
 ```
 
-The official scraper starts at
+The official context builder starts at
 `https://learn.liferay.com/w/dxp/index` and uses crawl4ai's BFS deep crawler to
 follow internal `/w/dxp/*` links. For each page, it extracts the article body,
 classifies the URL into a Liferay capability, and writes Markdown locally.
 
-The scraper is intentionally boring:
+The builder is intentionally boring:
 
 - It fetches from the live Liferay docs when you run it; this package does not
   redistribute Liferay documentation text.
 - It writes to one shared docs directory, so every project can use the same
-  corpus.
+  context library.
 - It retries through crawl4ai, writes files atomically, and exits non-zero when
   the crawl or page fetches fail.
-- It never starts a long scrape from inside the skill. If docs are missing, the
+- It never starts a long build from inside the skill. If docs are missing, the
   skill tells you which command to run.
 
 ## Where Files Go
@@ -94,12 +103,12 @@ By default, everything is written under:
 ~/.liferay-docs
 ```
 
-Use `LIFERAY_DOCS_DIR` when you want a repo-local or custom corpus:
+Use `LIFERAY_DOCS_DIR` when you want a repo-local or custom context library:
 
 ```bash
 export LIFERAY_DOCS_DIR="$PWD/.liferay-docs"
-uvx liferay-docs-scraper
-uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+uvx liferay-context-builder
+uvx --from liferay-context-builder liferay-context-builder-doctor
 ```
 
 Layout:
@@ -118,34 +127,34 @@ Layout:
     *_urls.txt
 ```
 
-`raw/{capability}/*.md` is the main official-docs corpus the skill reads first.
+`raw/{capability}/*.md` is the main official-docs library the skill reads first.
 `raw/_navigation/` keeps table-of-contents/navigation pages out of normal
 answers while preserving them. `raw/_removed/` holds pages only after the
-scraper directly confirms their original URL is gone.
+builder directly confirms their original URL is gone.
 
-## Refreshing Official Docs
+## Refreshing The Context Library
 
-Run the scraper again whenever you want fresh docs:
+Run the builder again whenever you want fresh docs:
 
 ```bash
-uvx liferay-docs-scraper
+uvx liferay-context-builder
 ```
 
 A normal full run usually takes tens of minutes. For a smoke test:
 
 ```bash
-uvx liferay-docs-scraper --max-pages 200
+uvx liferay-context-builder --max-pages 200
 ```
 
 Useful options:
 
 ```bash
-uvx liferay-docs-scraper --max-depth 12
-uvx liferay-docs-scraper --max-pages 3000
+uvx liferay-context-builder --max-depth 12
+uvx liferay-context-builder --max-pages 3000
 ```
 
 Each full run starts from the current site state. If a previously known page is
-not rediscovered by BFS, the scraper checks that page directly before moving it
+not rediscovered by BFS, the builder checks that page directly before moving it
 to `raw/_removed/`. If the page is still alive, it refreshes it directly and
 records the BFS coverage gap in the reports.
 
@@ -155,7 +164,7 @@ Community articles are optional, larger, and lower-authority than the official
 DXP docs:
 
 ```bash
-uvx --from liferay-docs-scraper liferay-docs-scraper-community
+uvx --from liferay-context-builder liferay-context-builder-community
 ```
 
 This fetches Liferay community How-To and Troubleshooting articles from
@@ -174,14 +183,14 @@ Useful commands:
 
 ```bash
 # Only How-To articles
-uvx --from liferay-docs-scraper liferay-docs-scraper-community --resource-type howto
+uvx --from liferay-context-builder liferay-context-builder-community --resource-type howto
 
 # Smaller test run per resource type
-uvx --from liferay-docs-scraper liferay-docs-scraper-community --limit 100
+uvx --from liferay-context-builder liferay-context-builder-community --limit 100
 ```
 
-Community scraping can take much longer than the official-docs scrape because
-it fetches thousands of additional articles.
+Community builds can take much longer than the official-docs build because they
+fetch thousands of additional articles.
 
 ## Installing The Skill
 
@@ -189,7 +198,7 @@ Install `liferay-expert` into each Claude Code project where you want Liferay
 help:
 
 ```bash
-npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
+npx skills add mordonez/liferay-context-builder --skill liferay-expert -a claude-code
 ```
 
 Manual install also works: place the skill file at:
@@ -198,7 +207,7 @@ Manual install also works: place the skill file at:
 .claude/skills/liferay-expert/SKILL.md
 ```
 
-The skill resolves docs the same way the scraper does:
+The skill resolves docs the same way the builder does:
 
 1. `$LIFERAY_DOCS_DIR`, if set.
 2. `~/.liferay-docs`, otherwise.
@@ -213,7 +222,7 @@ articles when both cover the same topic.
 Use the doctor when something feels off:
 
 ```bash
-uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+uvx --from liferay-context-builder liferay-context-builder-doctor
 ```
 
 It checks:
@@ -229,15 +238,15 @@ It checks:
 To inspect a different project directory:
 
 ```bash
-uvx --from liferay-docs-scraper liferay-docs-scraper-doctor --project-dir /path/to/project
+uvx --from liferay-context-builder liferay-context-builder-doctor --project-dir /path/to/project
 ```
 
-The doctor does not scrape docs and does not install the skill. It only reports
+The doctor does not build docs and does not install the skill. It only reports
 status and prints the next command to run.
 
 ## Reports
 
-The scraper writes agent-facing reports under `reports/filtered/`.
+The builder writes agent-facing reports under `reports/filtered/`.
 
 `search_index.jsonl` is a local retrieval index. Each JSON line includes title,
 source URL, source type, capability, file path, headings, and `fetched_at`. The
@@ -268,13 +277,13 @@ uvx --from crawl4ai crawl4ai-setup
 Run the install command from the project where you are using Claude Code:
 
 ```bash
-npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code
+npx skills add mordonez/liferay-context-builder --skill liferay-expert -a claude-code
 ```
 
 Then verify:
 
 ```bash
-uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+uvx --from liferay-context-builder liferay-context-builder-doctor
 ```
 
 **Claude Code says docs are missing**
@@ -286,19 +295,19 @@ echo "$LIFERAY_DOCS_DIR"
 ```
 
 If it is empty, the skill expects `~/.liferay-docs`. If it points somewhere
-else, run the scraper with that same environment variable.
+else, run the builder with that same environment variable.
 
 **Docs are stale**
 
 Refresh official docs:
 
 ```bash
-uvx liferay-docs-scraper
+uvx liferay-context-builder
 ```
 
 The doctor warns when official docs are older than about seven days.
 
-**A scrape stops partway through**
+**A build stops partway through**
 
 Rerun the same command. Already written Markdown remains usable, but a failed
 run exits non-zero and avoids treating untouched pages as removed.
@@ -325,7 +334,7 @@ environments can fail to find the `pytest` console script even when Python can
 run the module.
 
 CI runs lint, tests, and package build on Python 3.10, 3.11, 3.12, and 3.13.
-It does not run a real scrape. Release publishing is documented in
+It does not run a real docs build. Release publishing is documented in
 [`docs/release.md`](docs/release.md).
 
 ## License

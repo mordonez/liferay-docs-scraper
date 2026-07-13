@@ -1,7 +1,7 @@
 [project]
-name = "liferay-docs-scraper"
-version = "0.6.2"
-description = "Scrape learn.liferay.com/w/dxp into local Markdown docs (raw/{capability}/*.md) for the liferay-expert Claude Code skill."
+name = "liferay-context-builder"
+version = "0.7.0"
+description = "Build a local, cited Liferay DXP context library for the liferay-expert Claude Code skill."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10,<3.14"
@@ -11,9 +11,9 @@ dependencies = [
 ]
 
 [project.scripts]
-liferay-docs-scraper = "liferay_docs_scraper.pipeline:main"
-liferay-docs-scraper-community = "liferay_docs_scraper.community:main"
-liferay-docs-scraper-doctor = "liferay_docs_scraper.doctor:main"
+liferay-context-builder = "liferay_docs_scraper.pipeline:main"
+liferay-context-builder-community = "liferay_docs_scraper.community:main"
+liferay-context-builder-doctor = "liferay_docs_scraper.doctor:main"
 
 [build-system]
 requires = ["hatchling>=1.26"]

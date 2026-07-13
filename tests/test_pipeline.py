@@ -120,7 +120,7 @@ def test_main_exits_nonzero_on_crawl_error(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "quarantine_orphans", lambda stats: pipeline.QuarantineResult())
     monkeypatch.setattr(pipeline, "write_filtered_reports", lambda stats: None)
     monkeypatch.setattr(pipeline, "print_summary", lambda stats, quarantine_result: None)
-    monkeypatch.setattr("sys.argv", ["liferay-docs-scraper"])
+    monkeypatch.setattr("sys.argv", ["liferay-context-builder"])
 
     with pytest.raises(SystemExit) as exc_info:
         pipeline.main()

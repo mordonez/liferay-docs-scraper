@@ -1,11 +1,11 @@
 ---
 name: liferay-expert
-description: Answer Liferay DXP technical questions by searching and reading locally scraped documentation (hundreds of pages across 14 capabilities, mirrored from learn.liferay.com/w/dxp). Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
+description: Answer Liferay DXP technical questions by searching and reading the local context library built from learn.liferay.com/w/dxp. Use when the user asks how something works in Liferay DXP, wants configuration/troubleshooting steps, or asks about a specific capability (search, commerce, sites, security, self-hosted installation/upgrades, development, cloud, low-code, content management, digital asset management, personalization, integration, AI, or getting started).
 ---
 
 # Liferay Expert
 
-Ground every Liferay DXP answer in the scraped docs — don't answer from
+Ground every Liferay DXP answer in the local docs — don't answer from
 memory alone when this skill applies. Find the actual doc, read it, cite it.
 
 ## Step 1: find the docs
@@ -25,21 +25,21 @@ Call this `$DOCS_DIR` below. It should contain Markdown files under
 ## Step 2: is it there, and is it fresh?
 
 - **No official Markdown under `$DOCS_DIR/raw/{capability}/`?** Tell the
-  user to run the scraper once (takes ~30-40 min, hits learn.liferay.com
+  user to run the builder once (takes ~30-40 min, hits learn.liferay.com
   directly):
   ```
   uvx --from crawl4ai crawl4ai-setup   # one-time, installs Playwright browsers
-  uvx liferay-docs-scraper
+  uvx liferay-context-builder
   ```
   Don't launch this yourself mid-conversation — it's long-running and the
   user should choose when to wait for it.
 - **Official Markdown exists?** Check a few files' `fetched_at` frontmatter.
   If it's more than ~7 days old, mention the docs may be stale and that
-  `uvx liferay-docs-scraper` refreshes them (still answer with what's
+  `uvx liferay-context-builder` refreshes them (still answer with what's
   there — don't block on refreshing).
 - If the user wants a one-command local check, tell them:
   ```
-  uvx --from liferay-docs-scraper liferay-docs-scraper-doctor
+  uvx --from liferay-context-builder liferay-context-builder-doctor
   ```
 
 ## Step 3: search and answer
@@ -105,15 +105,15 @@ than guessing one and stopping.
 
 - All paths above (`raw/...`, `reports/...`) are relative to `$DOCS_DIR` from
   Step 1, not the current project directory.
-- `liferay-docs-scraper-doctor` checks whether official Markdown exists in
+- `liferay-context-builder-doctor` checks whether official Markdown exists in
   the shared docs directory and whether this project has
-  `.claude/skills/liferay-expert/SKILL.md`; it never scrapes or installs
+  `.claude/skills/liferay-expert/SKILL.md`; it never builds docs or installs
   anything.
 - `raw/_navigation/{capability}/` = TOC-only pages, excluded on purpose —
   skip them, their linked subpages exist as real files elsewhere.
 - `raw/_removed/{capability}/` = pages no longer on the live site. Only use
   as a last resort, and say explicitly that the source may be outdated.
-- The docs refresh on demand via `uvx liferay-docs-scraper` (rerun weekly if
+- The docs refresh on demand via `uvx liferay-context-builder` (rerun weekly if
   you want to stay current); each file's `fetched_at` frontmatter tells you how
   current it is.
 - `reports/filtered/{capability}_urls.txt` lists every in-scope URL per
@@ -121,13 +121,13 @@ than guessing one and stopping.
 - `reports/filtered/search_index.jsonl` is a generated local retrieval index
   for titles, headings, source type, capability, file path, source URL, and
   freshness. Use it as the first shortlist when it exists.
-- `reports/filtered/anomalies.jsonl` is an informational scrape-quality report
+- `reports/filtered/anomalies.jsonl` is an informational build-quality report
   (short bodies, missing titles, suspicious size changes, known error markers).
-  If you cite a page listed there, mention the scrape may need checking.
+  If you cite a page listed there, mention the local copy may need checking.
 - `raw/community-howto/` and `raw/community-troubleshooting/` are a separate,
   much larger (~4,800 pages) set of community-contributed recipes and
   troubleshooting articles from learn.liferay.com/kb-article/*, fetched by
-  `uvx --from liferay-docs-scraper liferay-docs-scraper-community` (a
+  `uvx --from liferay-context-builder liferay-context-builder-community` (a
   separate, multi-hour command -- not part of the weekly official-docs
   refresh, and not required for this skill to work at all). Same
   capability folder names as the official docs, plus a `_uncategorized/`

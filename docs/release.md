@@ -4,10 +4,10 @@ This package is published to PyPI with `uv publish` from GitHub Actions.
 
 ## One-time PyPI Setup
 
-Configure PyPI Trusted Publishing for the `liferay-docs-scraper` project:
+Configure PyPI Trusted Publishing for the `liferay-context-builder` project:
 
 - Owner: `mordonez`
-- Repository: `liferay-docs-scraper`
+- Repository: `liferay-context-builder`
 - Workflow: `publish.yml`
 - Environment: leave empty unless the workflow is later changed to use a
   GitHub environment

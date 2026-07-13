@@ -40,7 +40,7 @@ Replace Firecrawl entirely with **crawl4ai**, a free, self-hosted,
 Playwright-based crawler. It needs Python <=3.13 (its dependency chain did
 not yet support the system's Python 3.14 at the time of writing) -- run
 initially from an ad hoc virtualenv, later packaged properly as an
-installable `uv`/PyPI tool (`uvx liferay-docs-scraper`), which resolves the
+installable `uv`/PyPI tool (`uvx liferay-context-builder`), which resolves the
 Python-version constraint automatically instead of requiring a manually
 managed venv. `crawl4ai-setup` (installs the Playwright/Patchright Chromium
 builds) is still a required one-time step either way.

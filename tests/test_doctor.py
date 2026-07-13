@@ -27,7 +27,7 @@ def test_inspect_installation_reports_ready_project(tmp_path):
 
 def test_main_exits_nonzero_when_docs_or_skill_are_missing(monkeypatch, tmp_path):
     monkeypatch.setattr(doctor, "resolve_docs_dir", lambda: tmp_path / "missing-docs")
-    monkeypatch.setattr("sys.argv", ["liferay-docs-scraper-doctor", "--project-dir", str(tmp_path / "project")])
+    monkeypatch.setattr("sys.argv", ["liferay-context-builder-doctor", "--project-dir", str(tmp_path / "project")])
 
     with pytest.raises(SystemExit) as exc_info:
         doctor.main()

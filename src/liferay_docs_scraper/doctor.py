@@ -160,16 +160,16 @@ def print_result(result: DoctorResult) -> None:
 
     if result.ok:
         if result.docs_stale:
-            print(f"Warning: official docs are older than ~{STALE_AFTER_DAYS} days; refresh with uvx liferay-docs-scraper.")
+            print(f"Warning: official docs are older than ~{STALE_AFTER_DAYS} days; refresh with uvx liferay-context-builder.")
         print("Ready: ask Claude Code a Liferay DXP question in this project.")
         return
 
     print("\nNext steps:")
     if not result.docs_ready:
         print("  uvx --from crawl4ai crawl4ai-setup")
-        print("  uvx liferay-docs-scraper")
+        print("  uvx liferay-context-builder")
     if not result.skill_installed:
-        print("  npx skills add mordonez/liferay-docs-scraper --skill liferay-expert -a claude-code")
+        print("  npx skills add mordonez/liferay-context-builder --skill liferay-expert -a claude-code")
 
 
 def format_fetch_window(result: DoctorResult) -> str:

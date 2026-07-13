@@ -120,7 +120,7 @@ def test_main_exits_nonzero_when_run_all_reports_failure(monkeypatch):
         return True
 
     monkeypatch.setattr(community, "run_all", fake_run_all)
-    monkeypatch.setattr("sys.argv", ["liferay-docs-scraper-community"])
+    monkeypatch.setattr("sys.argv", ["liferay-context-builder-community"])
 
     with pytest.raises(SystemExit) as exc_info:
         community.main()
@@ -129,7 +129,7 @@ def test_main_exits_nonzero_when_run_all_reports_failure(monkeypatch):
 
 
 def test_main_rejects_non_positive_limit(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["liferay-docs-scraper-community", "--limit", "0"])
+    monkeypatch.setattr("sys.argv", ["liferay-context-builder-community", "--limit", "0"])
 
     with pytest.raises(SystemExit) as exc_info:
         community.main()
